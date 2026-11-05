@@ -1,3 +1,5 @@
+src/ORM/db.properties
+
 ### IntelliJ IDEA ###
 out/
 !**/src/main/**/out/
