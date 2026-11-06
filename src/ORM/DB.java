@@ -4,9 +4,7 @@ import ORM.Annotations.*;
 import ORM.Clases.*;
 import ORM.Exceptions.*;
 import ORM.Exceptions.Checked.*;
-import ORM.Exceptions.Unchecked.DBConexionException;
-import ORM.Exceptions.Unchecked.DBConfigInexistenteException;
-import ORM.Exceptions.Unchecked.NoLeisteElReadmeException;
+import ORM.Exceptions.Unchecked.*;
 import ORM.Queries.*;
 import ORM.SQL.*;
 
@@ -172,8 +170,10 @@ public class DB{
 		ResultSet results, Class<T> tabla
 	) throws ORMException {
 		try{
+			final var snapshot = Tabla.class.getDeclaredField("_snapshot");
 			final var filas = new ArrayList<T>();
 			final var schema = tablas.get(tabla);
+
 			while(results.next()){
 				final var constructor = tabla.getConstructor();
 				constructor.setAccessible(true);
@@ -188,7 +188,14 @@ public class DB{
 					field.setAccessible(true);
 					field.set(instancia, valor);
 				}
-				filas.add(tabla.cast(instancia));
+				var casted = tabla.cast(instancia);
+
+				//como viene de la DB, setteamos el hash de guardado:
+				snapshot.setAccessible(true);
+				snapshot.set(instancia, DB.hashearFila(instancia));
+
+				// agregar a la lista
+				filas.add(casted);
 			}
 			return filas;
 
@@ -204,6 +211,10 @@ public class DB{
 			throw new TablaAbstractaException(tabla);
 		}catch(IllegalAccessException e){
 			//NOTE: esto no deberia pasar nunca porque usamos setAccessible
+			throw new FatalORMException();
+		}catch(NoSuchFieldException e){
+			//NOTE: esto no deberia pasar nunca! si sucediera es
+			//      porque la tabla no tiene mas el campo _snapshot
 			throw new FatalORMException();
 		}
 	}
@@ -288,6 +299,7 @@ public class DB{
 			final var statement = super_query.toPreparedStatement(conexion);
 			final var result    = statement.executeUpdate() > 0;
 			//TODO: falta algo aca?
+
 		}catch(SQLException e){ throw new ErrorEnQueryException(e); }
 
 	}
@@ -295,9 +307,10 @@ public class DB{
 	private static HashMap<String, Columna> extraerColumnasDB(String tabla_nombre)
 	throws ORMException{
 		try{
+			final var catalog = conexion.getCatalog();
 			final var meta_data = conexion.getMetaData();
-			final var cols    = meta_data.getColumns(null, null, tabla_nombre, "%");
-			final var pks     = meta_data.getPrimaryKeys(null, null, tabla_nombre);
+			final var cols    = meta_data.getColumns(catalog, null, tabla_nombre, "%");
+			final var pks     = meta_data.getPrimaryKeys(catalog, null, tabla_nombre);
 			final var pk_name = pks.next() ? pks.getString("COLUMN_NAME") : null;
 
 			final var columnas = new HashMap<String, Columna>();
@@ -441,7 +454,7 @@ public class DB{
 					}
 
 					//ver si no se intento pisar la id
-					//TODO: esto es legacy de cuando la PK se podia configurar
+					//NOTE: esto es legacy de cuando la PK se podia configurar
 					//      por tabla
 					if(field.getName().equals("id")
 					&& curr_class != Tabla.class){

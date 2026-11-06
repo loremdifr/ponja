@@ -15,17 +15,17 @@ public abstract class Tabla{
 	private Boolean       borrado    = null;
 
 	@NoSeGuarda
-	private long snapshot; //TODO: null?
+	private long _snapshot = -1;
 
 
 	public boolean guardado() throws ORMException{
-		return snapshot != DB.hashearFila(this);
+		return _snapshot == DB.hashearFila(this);
 	}
 
 	public boolean guardar()
 	throws ORMException {
-		final var result    = DB.guardar(this);
-		if(result) snapshot = DB.hashearFila(this);
+		final var result     = DB.guardar(this);
+		if(result) _snapshot = DB.hashearFila(this);
 		return result;
 	}
 

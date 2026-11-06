@@ -54,7 +54,8 @@ void main() throws ORMException, SQLException{
 		//Despues puedo buscarlo directamente por ID:
 		var usuario_especifico = DB.buscarPorId(Usuario.class, id);
 		System.out.println("desde la db: " + usuario_especifico);
-	}catch(Exception e){
+		System.out.println("guardado: " + usuario_especifico.guardado());
+	}catch(ORMException e){
 		System.err.println(e);
 	}
 

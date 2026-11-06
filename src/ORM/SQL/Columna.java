@@ -7,7 +7,7 @@ public record Columna(
 	TipoColumna tipo,
 	boolean not_null,
 	boolean pk
-){
+) implements Comparable<Columna> {
 
 	public String toSQLDefinition(){
 		//column_name type AUTO_INCREMENT NOT NULL UNIQUE DEFAULT X
@@ -28,5 +28,11 @@ public record Columna(
 		//col_str.add("DEFAULT %s");
 
 		return String.join(" ", col_str);
+	}
+
+
+	@Override
+	public int compareTo(Columna col){
+		return this.nombre.compareTo(col.nombre);
 	}
 }
