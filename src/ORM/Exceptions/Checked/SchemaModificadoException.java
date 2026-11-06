@@ -1,6 +1,7 @@
-package ORM.Exceptions;
+package ORM.Exceptions.Checked;
 
 import ORM.Clases.Tabla;
+import ORM.Exceptions.ORMException;
 
 public class SchemaModificadoException extends ORMException{
 	public SchemaModificadoException(Tabla fila){

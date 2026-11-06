@@ -1,4 +1,6 @@
-package ORM.Exceptions;
+package ORM.Exceptions.Checked;
+
+import ORM.Exceptions.ORMException;
 
 public class TablaModificadaException extends ORMException{
 	public TablaModificadaException(

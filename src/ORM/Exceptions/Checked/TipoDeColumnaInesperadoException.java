@@ -1,4 +1,6 @@
-package ORM.Exceptions;
+package ORM.Exceptions.Checked;
+
+import ORM.Exceptions.ORMException;
 
 public class TipoDeColumnaInesperadoException extends ORMException{
 	public TipoDeColumnaInesperadoException(String tipo_str){

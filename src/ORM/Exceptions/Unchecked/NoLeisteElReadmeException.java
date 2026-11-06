@@ -1,4 +1,4 @@
-package ORM.Exceptions;
+package ORM.Exceptions.Unchecked;
 
 public class NoLeisteElReadmeException extends RuntimeException{
 	public NoLeisteElReadmeException(){

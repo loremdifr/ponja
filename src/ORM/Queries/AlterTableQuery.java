@@ -1,10 +1,9 @@
 package ORM.Queries;
 
-import ORM.Exceptions.ErrorEnQueryException;
+import ORM.Exceptions.Checked.ErrorEnQueryException;
 import ORM.Exceptions.ORMException;
 import ORM.SQL.Columna;
 import ORM.SQL.Schema;
-import com.mysql.cj.protocol.a.SqlDateValueEncoder;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;

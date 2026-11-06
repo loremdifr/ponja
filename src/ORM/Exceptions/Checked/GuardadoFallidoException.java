@@ -1,6 +1,7 @@
-package ORM.Exceptions;
+package ORM.Exceptions.Checked;
 
 import ORM.Clases.Tabla;
+import ORM.Exceptions.ORMException;
 
 public class GuardadoFallidoException extends ORMException{
 	public GuardadoFallidoException(Tabla fila){

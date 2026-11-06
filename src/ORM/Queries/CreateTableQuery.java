@@ -5,7 +5,6 @@ import ORM.SQL.Schema;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
-import java.sql.SQLException;
 import java.util.ArrayList;
 
 public record CreateTableQuery(Schema schema) implements Query{

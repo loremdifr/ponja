@@ -1,6 +1,7 @@
-package ORM.Exceptions;
+package ORM.Exceptions.Checked;
 
 import ORM.Clases.Tabla;
+import ORM.Exceptions.ORMException;
 
 import java.lang.reflect.Field;
 

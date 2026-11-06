@@ -1,5 +1,6 @@
-package ORM.Exceptions;
+package ORM.Exceptions.Checked;
 
+import ORM.Exceptions.ORMException;
 import ORM.SQL.Columna;
 
 public class TipoDeColumnaIncongruenteException extends ORMException{

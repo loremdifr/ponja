@@ -1,11 +1,10 @@
 package ORM.Queries;
 import ORM.Clases.Tabla;
 import ORM.DB;
-import ORM.Exceptions.ColumnaAusenteException;
+import ORM.Exceptions.Checked.ErrorEnQueryException;
 import ORM.Exceptions.ORMException;
 import ORM.SQL.Schema;
 
-import java.lang.reflect.InvocationTargetException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -99,7 +98,8 @@ public final class SelectQuery implements Query{
 //	public void distinct(){ return; }
 
 	@Override
-	public PreparedStatement toPreparedStatement(Connection conexion) throws ORMException{
+	public PreparedStatement toPreparedStatement(Connection conexion)
+	throws ORMException{
 		final var columnas = new ArrayList<String>();
 		for(final var col : schema.columnas().values()){
 			columnas.add(col.nombre());
@@ -126,9 +126,11 @@ public final class SelectQuery implements Query{
 //		if(!orderBy.isEmpty()) //TODO:
 		sql_query.append(";");
 
-		return conexion.prepareStatement(
-			sql_query.toString()
-		);
+		try{
+			return conexion.prepareStatement(
+				sql_query.toString()
+			);
+		}catch(SQLException e){ throw new ErrorEnQueryException(e); }
 	}
 
 

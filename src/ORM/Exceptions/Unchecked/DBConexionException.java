@@ -1,4 +1,4 @@
-package ORM.Exceptions;
+package ORM.Exceptions.Unchecked;
 
 import java.sql.SQLException;
 

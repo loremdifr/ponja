@@ -3,6 +3,10 @@ package ORM;
 import ORM.Annotations.*;
 import ORM.Clases.*;
 import ORM.Exceptions.*;
+import ORM.Exceptions.Checked.*;
+import ORM.Exceptions.Unchecked.DBConexionException;
+import ORM.Exceptions.Unchecked.DBConfigInexistenteException;
+import ORM.Exceptions.Unchecked.NoLeisteElReadmeException;
 import ORM.Queries.*;
 import ORM.SQL.*;
 
@@ -173,7 +177,9 @@ public class DB{
 			while(results.next()){
 				final var constructor = tabla.getConstructor();
 				constructor.setAccessible(true);
+
 				final var instancia = constructor.newInstance();
+
 				//rellenar ojeto
 				for(var entry : schema.columnas().entrySet()){
 					final var field = entry.getKey();
@@ -188,6 +194,17 @@ public class DB{
 
 		}catch(NoSuchMethodException e){
 			throw new TablaSinConstructorVacioException(tabla);
+		}catch(SQLException e){
+			throw new ErrorEnQueryException(e);
+		}catch(InvocationTargetException e){
+			//NOTE: esto tampoco debería pasar, salvo que
+			//      el constructor tire una exception tambien
+			throw new RuntimeException(e);
+		}catch(InstantiationException e){
+			throw new TablaAbstractaException(tabla);
+		}catch(IllegalAccessException e){
+			//NOTE: esto no deberia pasar nunca porque usamos setAccessible
+			throw new FatalORMException();
 		}
 	}
 
@@ -277,28 +294,32 @@ public class DB{
 
 	private static HashMap<String, Columna> extraerColumnasDB(String tabla_nombre)
 	throws ORMException{
-		final var meta_data = conexion.getMetaData();
-		final var cols    = meta_data.getColumns(null, null, tabla_nombre, "%");
-		final var pks     = meta_data.getPrimaryKeys(null, null, tabla_nombre);
-		final var pk_name = pks.next() ? pks.getString("COLUMN_NAME") : null;
+		try{
+			final var meta_data = conexion.getMetaData();
+			final var cols    = meta_data.getColumns(null, null, tabla_nombre, "%");
+			final var pks     = meta_data.getPrimaryKeys(null, null, tabla_nombre);
+			final var pk_name = pks.next() ? pks.getString("COLUMN_NAME") : null;
 
-		final var columnas = new HashMap<String, Columna>();
+			final var columnas = new HashMap<String, Columna>();
 
-		while(cols.next()){
-			//cols.getString("IS_AUTOINCREMENT") //TODO: usarlo
-			//TODO: extraer estos strings a un enum porque es un asco esto asi carlitos
-			final var column_name = cols.getString("COLUMN_NAME");
-			final var es_pk       = column_name.equals(pk_name);
-			final var tipo_col    = TipoColumna.fromSqlType(cols.getInt("DATA_TYPE"));
-			final var columna     = new Columna(
-				column_name,
-				tipo_col,
-				cols.getString("IS_NULLABLE").equals("NO"),
-				es_pk
-			);
-			columnas.put(column_name, columna);
+			while(cols.next()){
+				//cols.getString("IS_AUTOINCREMENT") //TODO: usarlo
+				//TODO: extraer estos strings a un enum porque es un asco esto asi carlitos
+				final var column_name = cols.getString("COLUMN_NAME");
+				final var es_pk       = column_name.equals(pk_name);
+				final var tipo_col    = TipoColumna.fromSqlType(cols.getInt("DATA_TYPE"));
+				final var columna     = new Columna(
+					column_name,
+					tipo_col,
+					cols.getString("IS_NULLABLE").equals("NO"),
+					es_pk
+				);
+				columnas.put(column_name, columna);
+			}
+			return columnas;
+		}catch(SQLException e){
+			throw new ErrorEnQueryException(e);
 		}
-		return columnas;
 	}
 
 	private static Field buscarFieldParaColumna(
