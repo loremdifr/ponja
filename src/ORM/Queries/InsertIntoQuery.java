@@ -16,7 +16,7 @@ public record InsertIntoQuery(
 ) implements Query{
 
 	@Override
-	public PreparedStatement toPreparedStatement(Connection conexion) throws SQLException{
+	public PreparedStatement toPreparedStatement(Connection conexion) throws ORMException{
 		//TODO: only update dirty fields
 
 		final var query_str =

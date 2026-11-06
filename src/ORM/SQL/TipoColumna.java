@@ -1,8 +1,6 @@
 package ORM.SQL;
 
-import ORM.Exceptions.ORMException;
-import ORM.Exceptions.TipoDeColumnaInesperadoException;
-import ORM.Exceptions.TipoDeColumnaInvalidaException;
+import ORM.Exceptions.*;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -62,7 +60,7 @@ public enum TipoColumna{
 	}
 
 	static public TipoColumna fromString(String str)
-	throws TipoDeColumnaInesperadoException{
+	throws ORMException{
 		for(var tipo_columna : values()){
 			if(tipo_columna.toString().equals(str)) return tipo_columna;
 		}
@@ -72,7 +70,7 @@ public enum TipoColumna{
 	//TODO: todo esto tendria que salir de un mapeo en lugar de tantos switches
 
 	static public TipoColumna fromSqlType(int sql_type)
-	throws TipoDeColumnaInesperadoException{
+	throws ORMException{
 		return switch(sql_type){
 			case Types.TINYINT     -> BOOL;
 			case Types.BIT         -> BOOL;
@@ -92,7 +90,8 @@ public enum TipoColumna{
 		};
 	}
 
-	static public TipoColumna fromField(Field field) throws TipoDeColumnaInvalidaException{
+	static public TipoColumna fromField(Field field)
+	throws ORMException{
 		final var tipo = field.getType();
 		if(tipo == Boolean.class)       return TipoColumna.BOOL;
 		if(tipo == boolean.class)       return TipoColumna.BOOL;
@@ -114,52 +113,67 @@ public enum TipoColumna{
 		throw new TipoDeColumnaInvalidaException(field);
 	}
 
-	static public Object valueFromResult(Columna col, ResultSet result, String label)
-	throws SQLException, ORMException{ //TODO: unificar exceptions
-		return switch(col.tipo()){
-			case BOOL     -> result.getBoolean(label);
-			case INT      -> result.getInt(label);
-			case BIGINT   -> result.getLong(label);
-			case FLOAT    -> result.getFloat(label);
-			case DOUBLE   -> result.getDouble(label);
-			case DECIMAL  -> result.getBigDecimal(label);
-			case VARCHAR  -> result.getString(label);
-			case TEXT     -> result.getString(label);
-			case DATE     -> {
-				var date = result.getDate(label);
-				yield date == null ? null : date.toLocalDate();
-			}
-			case DATETIME -> {
-				var ts = result.getTimestamp(label);
-				yield ts == null ? null : ts.toLocalDateTime();
-			}
-			case AUTO -> throw new ORMException("Inés Perado"); //TODO:
-		};
+	static public Object valueFromResult(
+		Columna   col,
+		ResultSet result,
+		String    label
+	) throws ORMException {
+		try{
+			return switch(col.tipo()){
+				case BOOL     -> result.getBoolean(label);
+				case INT      -> result.getInt(label);
+				case BIGINT   -> result.getLong(label);
+				case FLOAT    -> result.getFloat(label);
+				case DOUBLE   -> result.getDouble(label);
+				case DECIMAL  -> result.getBigDecimal(label);
+				case VARCHAR  -> result.getString(label);
+				case TEXT     -> result.getString(label);
+				case DATE     -> {
+					var date = result.getDate(label);
+					yield date == null ? null : date.toLocalDate();
+				}
+				case DATETIME -> {
+					var ts = result.getTimestamp(label);
+					yield ts == null ? null : ts.toLocalDateTime();
+				}
+				//NOTE: esto no deberia pasar nunca porque
+				//      tipoDeColumna cambia los AUTO a lo que le corresponden.
+				case AUTO -> throw new FatalORMException();
+			};
+		}catch(SQLException e){
+			throw new TipoDeColumnaIncongruenteException(col, label);
+		}
 	}
 
 	static public void valueIntoStatement(
 		PreparedStatement statement,
 		int index,
 		Object value
-	) throws SQLException{
-		switch(value){
-			case Integer in      -> statement.setInt       (index, in);
-			case String s        -> statement.setString    (index, s);
-			case BigDecimal b    -> statement.setBigDecimal(index, b);
-			case Boolean b       -> statement.setBoolean   (index, b);
-			case Byte b          -> statement.setByte      (index, b);
-			case LocalDate d     -> statement.setDate      (index, Date.valueOf(d));
-			case LocalDateTime t -> statement.setTimestamp (index, Timestamp.valueOf(t));
-			case Double d        -> statement.setDouble    (index, d);
-			case Float f         -> statement.setFloat     (index, f);
-			case Long l          -> statement.setLong      (index, l);
-			case null            -> statement.setNull      (index, Types.NULL);
-			default -> throw new UnsupportedOperationException();
+	) throws ORMException{
+		try{
+			switch(value){
+				case Integer in      -> statement.setInt       (index, in);
+				case String s        -> statement.setString    (index, s);
+				case BigDecimal b    -> statement.setBigDecimal(index, b);
+				case Boolean b       -> statement.setBoolean   (index, b);
+				case Byte b          -> statement.setByte      (index, b);
+				case LocalDate d     -> statement.setDate      (index, Date.valueOf(d));
+				case LocalDateTime t -> statement.setTimestamp (index, Timestamp.valueOf(t));
+				case Double d        -> statement.setDouble    (index, d);
+				case Float f         -> statement.setFloat     (index, f);
+				case Long l          -> statement.setLong      (index, l);
+				case null            -> statement.setNull      (index, Types.NULL);
+				default -> throw new TipoDeValorInesperadoException(value);
+			}
+		}catch(SQLException e){
+			//NOTE: esto no deberia ocurrir nunca. Sucedería si el statement
+			//      no tiene el indice esperado, pero el ORM se encarga de eso.
+			throw new FatalORMException();
 		}
 	}
 
 	static public Object valueFromResult(Columna col, ResultSet result)
-	throws SQLException, ORMException{
+	throws ORMException{
 		return valueFromResult(col, result, col.nombre());
 	}
 }

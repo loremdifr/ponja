@@ -6,7 +6,7 @@ enum Comparador{
 	LTE      ("<="),
 	GT       (">"),
 	GTE      (">="),
-	NEQ      ("!="),
+	NEQ      ("<>"),
 	LIKE     ("LIKE"),
 	NOT_LIKE ("NOT LIKE"),
 	ILIKE    ("ILIKE"),

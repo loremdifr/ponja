@@ -1,7 +1,10 @@
 package ORM.Queries;
 
+import ORM.Exceptions.ErrorEnQueryException;
+import ORM.Exceptions.ORMException;
 import ORM.SQL.Columna;
 import ORM.SQL.Schema;
+import com.mysql.cj.protocol.a.SqlDateValueEncoder;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -22,7 +25,7 @@ public record AlterTableQuery(
 	@Override
 	public PreparedStatement toPreparedStatement(
 		Connection conexion
-	) throws SQLException{
+	) throws ORMException{
 
 		final var query = new ArrayList<String>();
 		final var query_str      = "ALTER TABLE %s %s %s;";
@@ -51,12 +54,14 @@ public record AlterTableQuery(
 			schema.columnas().get(schema.pk()).nombre()
 		) : "";
 
-		return conexion.prepareStatement(
-			query_str.formatted(
-				schema.tabla(),
-				String.join(",\n", query),
-				pk_str
-			)
-		);
+		try{
+			return conexion.prepareStatement(
+				query_str.formatted(
+					schema.tabla(),
+					String.join(",\n", query),
+					pk_str
+				)
+			);
+		}catch(SQLException e){ throw new ErrorEnQueryException(e); }
 	}
 }

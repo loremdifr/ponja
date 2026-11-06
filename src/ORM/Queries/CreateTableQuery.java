@@ -1,5 +1,6 @@
 package ORM.Queries;
 
+import ORM.Exceptions.ORMException;
 import ORM.SQL.Schema;
 
 import java.sql.Connection;
@@ -30,7 +31,8 @@ public record CreateTableQuery(Schema schema) implements Query{
 	}
 
 	@Override
-	public PreparedStatement toPreparedStatement(Connection conexion) throws SQLException{
+	public PreparedStatement toPreparedStatement(Connection conexion)
+	throws ORMException{
 		//TODO:
 		return null;
 	}

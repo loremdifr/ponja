@@ -1,6 +1,6 @@
 package ORM.Exceptions;
 
-public class ORMException extends Exception{
+public abstract class ORMException extends Exception{
 	public ORMException(String message){
 		super(message);
 	}

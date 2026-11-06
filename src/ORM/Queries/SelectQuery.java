@@ -35,7 +35,7 @@ public final class SelectQuery implements Query{
 		String nombre_columna,
 		String comparador,
 		String valor
-	) throws ColumnaAusenteException{
+	) throws ORMException{
 		final var _ = DB.getColumna(schema, nombre_columna);
 		wheres.add(new Where.BasicWhere(nombre_columna, comparador, valor));
 		return this;
@@ -45,18 +45,18 @@ public final class SelectQuery implements Query{
 		String nombre_columna,
 		String comparador,
 		Integer valor_int
-	) throws ColumnaAusenteException{
+	) throws ORMException{
 		return where(nombre_columna, comparador, valor_int.toString());
 	}
 
 	public SelectQuery where(String columna, String valor)
-	throws ColumnaAusenteException{ return where(columna, "=", valor); }
+	throws ORMException{ return where(columna, "=", valor); }
 
 	public SelectQuery andWhere(
 		String nombre_columna,
 		String comparador,
 		String valor
-	) throws ColumnaAusenteException{
+	) throws ORMException{
 		final var _ = DB.getColumna(schema, nombre_columna);
 		wheres.add(new Where.BasicWhere(
 			nombre_columna, comparador, valor, Where.Conector.AND
@@ -68,7 +68,7 @@ public final class SelectQuery implements Query{
 		String nombre_columna,
 		String comparador,
 		String valor
-	) throws ColumnaAusenteException{
+	) throws ORMException{
 		final var _ = DB.getColumna(schema, nombre_columna);
 		wheres.add(new Where.BasicWhere(
 			nombre_columna, comparador, valor, Where.Conector.OR
@@ -85,7 +85,7 @@ public final class SelectQuery implements Query{
 	public SelectQuery orderBy(){ return this; }
 
 	//results
-	public Tabla first() throws SQLException, ORMException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException{
+	public Tabla first() throws ORMException{
 		final var result = DB.ejecutarQuery(limit(1), from);
 		return result.getFirst();
 	}
@@ -99,7 +99,7 @@ public final class SelectQuery implements Query{
 //	public void distinct(){ return; }
 
 	@Override
-	public PreparedStatement toPreparedStatement(Connection conexion) throws SQLException{
+	public PreparedStatement toPreparedStatement(Connection conexion) throws ORMException{
 		final var columnas = new ArrayList<String>();
 		for(final var col : schema.columnas().values()){
 			columnas.add(col.nombre());

@@ -12,10 +12,7 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -37,11 +34,14 @@ public class DB{
 
 	static {
 		var config_file = DB.class.getResourceAsStream("db.properties");
+		if(config_file == null) throw new DBConfigInexistenteException();
+
 		var db_config = new Properties();
+
 		try{
 			db_config.load(config_file);
 		}catch(IOException e){
-			throw new RuntimeException("DB Config: " + e);
+			throw new DBConfigInexistenteException();
 		}
 
 		var host = db_config.getProperty("host");
@@ -51,12 +51,12 @@ public class DB{
 		var pwd  = db_config.getProperty("pwd");
 
 		try{
-			final var url_template = "jdbc:mysql://%s:%s/%s?useSSL=false";
+			final var url_template = "jdbc:mysql://%s:%s/%s";
 			conexion = DriverManager.getConnection(
 				url_template.formatted(host, port, db), usr, pwd
 			);
 		}catch(SQLException e){
-			throw new RuntimeException("SQL: " + e);
+			throw new DBConexionException(e);
 		}
 
 		nombre_db = db;
@@ -82,7 +82,7 @@ public class DB{
 	 */
 	@SafeVarargs
 	public static void registrarTablas(Class<? extends Tabla> ...clases)
-	throws ORMException, SQLException{
+	throws ORMException{
 
 		if(!tablas.isEmpty()) throw new NoLeisteElReadmeException();
 
@@ -117,53 +117,60 @@ public class DB{
 	}
 
 
-	static public boolean guardar(Tabla fila) throws SQLException, ORMException, IllegalAccessException{
-		if(fila.guardado()) return true;
-		final var tabla     = tablas.get(fila.getClass());
-		final var query     = new InsertIntoQuery(tabla, fila);
-		final var statement = query.toPreparedStatement(conexion);
-		final var result    = statement.executeUpdate() > 0;
+	static public boolean guardar(Tabla fila)
+	throws ORMException{
+		try{
+			if(fila.guardado()) return true;
+			final var tabla     = tablas.get(fila.getClass());
+			final var query     = new InsertIntoQuery(tabla, fila);
+			final var statement = query.toPreparedStatement(conexion);
+			final var result    = statement.executeUpdate() > 0;
 
-		//rellenar PK si se creo
-		if(result && fila.getId() == null){
-			final var generated_keys = statement.getGeneratedKeys();
-			final var schema   = tablas.get(fila.getClass());
-			final var pk_field = schema.pk();
-			final var col      = schema.columnas().get(pk_field);
+			//rellenar PK si se creo
+			if(result && fila.getId() == null){
+				final var generated_keys = statement.getGeneratedKeys();
+				final var schema   = tablas.get(fila.getClass());
+				final var pk_field = schema.pk();
+				final var col      = schema.columnas().get(pk_field);
 
-			generated_keys.next(); //TODO: assert
+				generated_keys.next(); //TODO: assert
 
-			final var nueva_id = TipoColumna.valueFromResult(col, generated_keys, "GENERATED_KEY");
-			pk_field.setAccessible(true);
-			pk_field.set(fila, nueva_id);
+				final var nueva_id = TipoColumna.valueFromResult(
+					col, generated_keys, "GENERATED_KEY"
+				);
+				pk_field.setAccessible(true);
+				pk_field.set(fila, nueva_id);
+			}
+
+			return result;
+		}catch(SQLException e){
+			throw new GuardadoFallidoException(fila);
+		}catch(IllegalAccessException e){
+			throw new SchemaModificadoException(fila);
 		}
-
-		return result;
 	}
 
 	static public <T extends Tabla> ArrayList<T> ejecutarQuery(
 		Query query, Class<T> tabla
-	) throws SQLException,
-			 ORMException,
-			 InvocationTargetException,
-			 InstantiationException,
-			 IllegalAccessException
-	{
-		final var statement = query.toPreparedStatement(conexion);
-		final var results   = statement.executeQuery();
-		return resultSetAFilas(results, tabla);
+	) throws ORMException {
+		try{
+			final var statement = query.toPreparedStatement(conexion);
+			final var results   = statement.executeQuery();
+			return resultSetAFilas(results, tabla);
+		}catch(SQLTimeoutException e){
+			throw new DBTimeoutException();
+		}catch(SQLException e){
+			throw new ErrorEnQueryException(e);
+		}
 	}
 
 	static private <T extends Tabla> ArrayList<T> resultSetAFilas(
 		ResultSet results, Class<T> tabla
-	) throws SQLException,
-		InvocationTargetException,
-		InstantiationException,
-		IllegalAccessException, ORMException{
-		final var filas = new ArrayList<T>();
-		final var schema = tablas.get(tabla);
-		while(results.next()){
-			try{
+	) throws ORMException {
+		try{
+			final var filas = new ArrayList<T>();
+			final var schema = tablas.get(tabla);
+			while(results.next()){
 				final var constructor = tabla.getConstructor();
 				constructor.setAccessible(true);
 				final var instancia = constructor.newInstance();
@@ -176,16 +183,12 @@ public class DB{
 					field.set(instancia, valor);
 				}
 				filas.add(tabla.cast(instancia));
-
-			}catch(NoSuchMethodException e){
-				//TODO: mover a su propia exception, checkear en registrarTablas
-				throw new ORMException(
-					"Las clases que heredan de Tabla deben implementar un constructor sin argumentos."
-				);
 			}
+			return filas;
 
+		}catch(NoSuchMethodException e){
+			throw new TablaSinConstructorVacioException(tabla);
 		}
-		return filas;
 	}
 
 	static public SelectQuery buscar(Class<? extends Tabla> tabla){
@@ -195,14 +198,14 @@ public class DB{
 	static public Tabla buscarPorId(
 		Class<? extends Tabla> tabla,
 		Integer id
-	) throws ORMException, SQLException, InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException{
+	) throws ORMException {
 		final var schema = tablas.get(tabla);
 		if(schema == null) throw new TablaNoRegistradaException(tabla);
 		return buscar(tabla).where("id", "=", id).first();
 	}
 
 	static public void crearOActualizarTabla(Schema schema)
-	throws SQLException, ORMException{
+	throws ORMException{
 		if(!existeTabla(schema)){
 			crearTabla(schema);
 		}else{
@@ -267,14 +270,13 @@ public class DB{
 		try{
 			final var statement = super_query.toPreparedStatement(conexion);
 			final var result    = statement.executeUpdate() > 0;
-		}catch(SQLException e){
-			throw new ORMException("Algo salió terriblemente mal :D");
-		}
+			//TODO: falta algo aca?
+		}catch(SQLException e){ throw new ErrorEnQueryException(e); }
 
 	}
 
 	private static HashMap<String, Columna> extraerColumnasDB(String tabla_nombre)
-	throws SQLException, ORMException{
+	throws ORMException{
 		final var meta_data = conexion.getMetaData();
 		final var cols    = meta_data.getColumns(null, null, tabla_nombre, "%");
 		final var pks     = meta_data.getPrimaryKeys(null, null, tabla_nombre);
@@ -304,40 +306,48 @@ public class DB{
 		Columna aguja
 	) throws ORMException{
 		final var columnas = columnasDeTabla(tabla);
+
 		for(var entry : columnas.entrySet()){
 			final var columna = entry.getValue();
-			final var field = entry.getKey();
+			final var field   = entry.getKey();
+
 			if(columna.nombre().equals(aguja.nombre())){
 				return field;
 			}
+
 		}
+
 		return null;
 	}
 
 	private static void crearTabla(Schema schema)
-	throws SQLException{
-		final var statement = conexion.createStatement();
-		final var query = new CreateTableQuery(schema);
-		statement.executeUpdate(query.toString());
-		statement.close();
+	throws ORMException{
+		try{
+			final var statement = conexion.createStatement();
+			final var query = new CreateTableQuery(schema);
+			statement.executeUpdate(query.toString());
+			statement.close();
+		}catch(SQLException e){ throw new ErrorEnQueryException(e); }
 	}
 
-	static public boolean existeTabla(Schema schema) throws SQLException{
-		final var statement = conexion.createStatement();
-		final var sql = """
-						SELECT COUNT(*) FROM information_schema.tables
-						WHERE table_schema = '%s'
-						AND table_name = '%s';
-						""";
-		final var result = statement.executeQuery(sql.formatted(nombre_db, schema.tabla()));
-		final var success = result.next() && result.getInt(1) > 0;
-		statement.close();
-		return success;
+	static public boolean existeTabla(Schema schema) throws ORMException{
+		try{
+			final var statement = conexion.createStatement();
+			final var sql = """
+							SELECT COUNT(*) FROM information_schema.tables
+							WHERE table_schema = '%s'
+							AND table_name = '%s';
+							""";
+			final var sql_str = sql.formatted(nombre_db, schema.tabla());
+			final var result  = statement.executeQuery(sql_str);
+			final var success = result.next() && result.getInt(1) > 0;
+			statement.close();
+			return success;
+		}catch(SQLException e){ throw new ErrorEnQueryException(e); }
 	}
-
 
 	public static Columna getColumna(Schema schema, String nombre_columna)
-	throws ColumnaAusenteException{
+	throws ORMException{
 		for(var columna : schema.columnas().values()){
 			if(columna.nombre().equals(nombre_columna)) return columna;
 		}
@@ -345,7 +355,7 @@ public class DB{
 	}
 
 	public static Columna getColumna(String nombre_tabla, String nombre_columna)
-	throws ColumnaAusenteException{
+	throws ORMException{
 		//TODO: probablemente necesito un mapa de string a tabla
 		//      para que esto sea mas rapido, porque se llama desde las queries
 		for(var schema : tablas.values()){
@@ -362,7 +372,7 @@ public class DB{
 	public static long hashearFila(Tabla fila) throws ORMException{
 		final var cols = columnasDeTabla(fila.getClass());
 		final var cols_en_orden = cols.values().stream().sorted().toList();
-		long hashcode = 6767676767676767L;
+		long hashcode = 6767676767676767L; //NOTE: six seven
 
 		for(var col : cols_en_orden){
 			final var valor = valorDeColumna(fila, col);
@@ -410,12 +420,11 @@ public class DB{
 					}
 
 					//ver si no se intento pisar la id
+					//TODO: esto es legacy de cuando la PK se podia configurar
+					//      por tabla
 					if(field.getName().equals("id")
 					&& curr_class != Tabla.class){
-						//TODO: hacer exception unica
-						throw new ORMException("Se intentó redefinir 'id' en '%s'".formatted(
-							tabla.toString()
-						));
+						throw new PKRedefinidaException(tabla);
 					}
 
 					final var es_pk    = field.equals(clave_primaria);
@@ -433,14 +442,15 @@ public class DB{
 			}
 
 		}catch(NoSuchFieldException e){
-			//jamas se tira esta exception porque Tabla tiene el campo
+			// jamas se tira esta exception porque el parametro es
+			// Class<? extends Tabla> y Tabla tiene el campo definido
 		}
 
 		return columnas;
 	}
 
 	static private TipoColumna tipoDeColumna(Field field)
-	throws TipoDeColumnaInvalidaException{
+	throws ORMException{
 		final var nota = field.getAnnotation(GuardarComo.class);
 
 		if(nota != null

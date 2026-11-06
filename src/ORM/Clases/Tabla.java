@@ -3,7 +3,7 @@ package ORM.Clases;
 import ORM.Annotations.NoSeGuarda;
 import ORM.DB;
 import ORM.Exceptions.ORMException;
-import java.sql.SQLException;
+
 import java.time.LocalDateTime;
 
 
@@ -23,10 +23,7 @@ public abstract class Tabla{
 	}
 
 	public boolean guardar()
-	throws SQLException,
-		   ORMException,
-		   IllegalAccessException
-	{
+	throws ORMException {
 		final var result    = DB.guardar(this);
 		if(result) snapshot = DB.hashearFila(this);
 		return result;
