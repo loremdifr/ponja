@@ -9,6 +9,7 @@ import ORM.Queries.*;
 import ORM.SQL.*;
 
 import javax.naming.OperationNotSupportedException;
+import javax.xml.transform.Result;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -16,6 +17,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.sql.*;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 
@@ -118,7 +120,9 @@ public class DB{
 		}
 	}
 
-
+	/**
+	 * TODO: Documentar..
+	 * */
 	static public boolean guardar(Tabla fila)
 	throws ORMException{
 		try{
@@ -152,13 +156,38 @@ public class DB{
 		}
 	}
 
-	static public <T extends Tabla> ArrayList<T> ejecutarQuery(
-		Query query, Class<T> tabla
-	) throws ORMException {
+	static public boolean borrar(Tabla fila)
+	throws ORMException{
+		try{
+			if(fila.borrado())       return true;
+			if(!fila.guardado())     return false; // nunca se guardo
+			if(fila.getId() == null) return false;
+
+			final var field = Tabla.class.getDeclaredField("borrado");
+			field.setAccessible(true);
+			field.set(fila, true);
+
+			final var result = guardar(fila);
+
+			//si fallo el guardado, revertir el campo "borrado"
+			if(!result) field.set(fila, false);
+
+			return result;
+		}catch(NoSuchFieldException e){
+			//NOTE: esto no deberia pasar nunca! si sucediera es
+			//      porque la tabla no tiene mas el campo borrado
+			throw new FatalORMException();
+		}catch(IllegalAccessException e){
+			//NOTE: esto no deberia pasar nunca porque usamos setAccessible
+			throw new FatalORMException();
+		}
+	}
+
+	static public ResultSet ejecutarQuery(Query query)
+	throws ORMException {
 		try{
 			final var statement = query.toPreparedStatement(conexion);
-			final var results   = statement.executeQuery();
-			return resultSetAFilas(results, tabla);
+			return statement.executeQuery();
 		}catch(SQLTimeoutException e){
 			throw new DBTimeoutException();
 		}catch(SQLException e){
@@ -166,7 +195,19 @@ public class DB{
 		}
 	}
 
-	static private <T extends Tabla> ArrayList<T> resultSetAFilas(
+	static public <T> T ejecutarFuncion(
+		SelectQuery query,
+		ResultSetGetter<T> result_getter
+	) throws ORMException {
+		try(final var result = DB.ejecutarQuery(query)){
+			result.next(); //TODO: assert
+			return result_getter.apply(result, 1);
+		}catch(SQLException e){
+			throw new ErrorEnQueryException(e);
+		}
+	}
+
+	static public <T extends Tabla> ArrayList<T> resultSetAFilas(
 		ResultSet results, Class<T> tabla
 	) throws ORMException {
 		try{
@@ -229,7 +270,7 @@ public class DB{
 	) throws ORMException {
 		final var schema = tablas.get(tabla);
 		if(schema == null) throw new TablaNoRegistradaException(tabla);
-		return buscar(tabla).where("id", "=", id).first();
+		return buscar(tabla).where("id", id).first();
 	}
 
 	static public void crearOActualizarTabla(Schema schema)

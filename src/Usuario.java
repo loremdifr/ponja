@@ -4,19 +4,20 @@ import ORM.Relaciones.ManyToOne;
 import ORM.SQL.TipoColumna;
 import ORM.Clases.Tabla;
 
-import java.time.LocalDateTime;
-
 public class Usuario extends Tabla{
 
-	private String        nombre;
-	private int           edad;
+	private String  nombre;
+	private int     edad;
 
-	@NoSeGuarda
-	private ManyToOne<Empresa> empresa;
-
+	//para que no sea varchar, se puede especificar:
 	@GuardarComo(tipo = TipoColumna.TEXT)
 	private String biografia;
 
+	//ciertos campos no deben ser guardados:
+	@NoSeGuarda
+	private ManyToOne<Empresa> empresa;
+
+	//esto es requerido por el ORM, un constructor sin parametros
 	public Usuario(){}
 
 	public Usuario(
@@ -31,11 +32,16 @@ public class Usuario extends Tabla{
 	}
 
 	//getters
-	public String        getNombre()             { return nombre;             }
-	public int           getEdad()               { return edad;               }
-	public String        getBiografia()          { return biografia;          }
-	public Empresa       getEmpresa()            { return empresa.get();      }
+	public String  getNombre()   { return nombre;        }
+	public int     getEdad()     { return edad;          }
+	public String  getBiografia(){ return biografia;     }
+	public Empresa getEmpresa()  { return empresa.get(); }
 
+	//setters
+	public void setNombre   (String  nombre)   { this.nombre = nombre; }
+	public void setEdad     (int     edad)     { this.edad   = edad;   }
+//	public void setEmpresa  (Empresa empresa)  { this.empresa = empresa; }
+	public void setBiografia(String  biografia){ this.biografia = biografia; }
 
 	@Override
 	public String toString(){

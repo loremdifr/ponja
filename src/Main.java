@@ -10,7 +10,7 @@ import java.sql.SQLException;
 //TODO: asociaciones
 //TODO: enums -> store as varchar (startup check that nothing invalid is stored in the db!)
 
-void main() throws ORMException, SQLException{
+void main() throws ORMException{
 
 	//requisito para usar esto:
 	// - copiar el archivo db.properties.default a db.properties
@@ -26,58 +26,62 @@ void main() throws ORMException, SQLException{
 	// actualizados en la DB solitos.
 
 	//como guardar datos y buscarlos:
-	try{
-		var mi_usuario = new Usuario(
-			"Jared",
-			19,
-			"What up, I'm Jared, I'm 19, and I never fucking learned how to read"
-		);
+	var mi_usuario = new Usuario(
+		"Jared",
+		19,
+		"What up, I'm Jared, I'm 19, and I never fucking learned how to read"
+	);
 
-		//guardar en la db es asi:
-		mi_usuario.guardar();
+	//guardar en la db es asi:
+	mi_usuario.guardar();
 
-		System.out.println("usuario: " + mi_usuario);
-		System.out.println("guardado: " + mi_usuario.guardado());
+	System.out.println("usuario: " + mi_usuario);
+	System.out.println("guardado?: " + mi_usuario.guardado());
 
-		//guardado() = "lo que tengo en memoria esta persistido y al dia".
-		// - objeto nuevo: false (nunca se guardo)
-		// - guardado y sin tocar nada desde entonces: true
-		// - editado algo despues del ultimo guardar(): false
-		//Si guardar() se llama cuando guardado() ya es true, no hace nada
-		//(asi no pisa el timestamp de modificacion).
-		//Regla: no llames guardado() ni este if en las gestoras, solo llama
-		//guardar(). Esto es para la UI y para entender el ciclo de vida.
+	//guardado() = ¿esta persistido y al dia en la DB?
+	mi_usuario.setEdad(67); //al modificarlo, guardado() regresa false
+	System.out.println("con cambios: " + mi_usuario);
+	System.out.println("guardado?: " + mi_usuario.guardado());
 
-		var id = mi_usuario.getId(); //una vez guardado, el ID se actualiza
-		System.out.println("pk: " + id);
+	// - objeto nuevo: false (nunca se guardo)
+	// - guardado y sin tocar nada desde entonces: true
+	// - editado algo despues del ultimo guardar(): false
+	//Si guardar() se llama cuando guardado() ya es true, no hace nada
+	//(asi no pisa el timestamp de modificacion).
+	//Regla: no llames guardado() ni este if en las gestoras, solo llama
+	//guardar(). Esto es para la UI y para entender el ciclo de vida.
 
-		//Despues puedo buscarlo directamente por ID:
-		var usuario_especifico = DB.buscarPorId(Usuario.class, id);
-		System.out.println("desde la db: " + usuario_especifico);
-		System.out.println("guardado: " + usuario_especifico.guardado());
-	}catch(ORMException e){
-		System.err.println(e);
-	}
+	var id = mi_usuario.getId(); //una vez guardado, el ID se actualiza
+	System.out.println("pk: " + id);
+
+	//Despues puedo buscarlo directamente por ID:
+	var usuario_especifico = DB.buscarPorId(Usuario.class, id);
+	System.out.println("desde la db: " + usuario_especifico);
+	System.out.println("guardado: " + usuario_especifico.guardado());
 
 	//O puedo buscar lo que quiera:
-//	var jared = DB.buscar(Usuario.class)
-////		.where("nombre", "=", "Jared")
-//		.where("nombre", "LIKE", "J%")
-//		.andWhere("edad", ">", 18)
-//		.first(); //le mete limit 1, y te devuelve solo el primer resultado
+	var jared = DB.buscar(Usuario.class)
+		.where("nombre", "LIKE", "J%")
+		.andWhere("edad", ">", 18)
+		.first(); //le mete limit 1, y te devuelve solo el primer resultado
+
+	System.out.println("jared:" + jared);
 
 	//llamando a toList() se obtiene un ArrayList
-//	var usuarios = SQL.buscar(Usuario.class)
-//		.where("nombre", "LIKE", "J%")
-//		.orWhere("nombre", "IN", "Pedro", "Pablo")
-//		.groupBy("edad")
-//		.limit(12)
-//		.orderBy("nombre", "ASC")
-//		.toList();
+	var usuarios = DB.buscar(Usuario.class)
+		.where("nombre", "LIKE", "J%")
+		.orWhere("nombre", "IN", "Pedro", "Pablo")
+		.groupBy("edad")
+		.limit(12)
+		.orderBy("nombre", "ASC")
+		.toList();
+
+	System.out.println("usuarios: " + usuarios);
 
 
 	// las funciones de SQL tienen su propio metodo:
-//	var total_usuarios = SQL.buscar(Usuario.class).count("*");
+	var total_usuarios = DB.buscar(Usuario.class).count();
+	System.out.println("total usuarios:" + total_usuarios);
 //	var edades_promedio = SQL.buscar(Usuario.class).avg("edad");
 //	var chikitito = SQL.buscar(Usuario.class).min("edad");
 //	var grandote = SQL.buscar(Usuario.class).max("edad");

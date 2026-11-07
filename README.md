@@ -5,6 +5,7 @@ pequenho ORM na Java
 
 ## TODOs
 
+- Revisar que todos los recursos (conexiones, statements, resultsets) esten siendo cerrados correctamente.
 
 #### TIPOS:
 - guardar Enums como VARCHAR
@@ -17,28 +18,7 @@ pequenho ORM na Java
 - agregar DB.query("") para poder hacer queries manuales
 
 
-
-#### Tabla base
-- mover id a Tabla y que sea todo eso automatico
-  - quitar @ClavePrimaria
-- agregar columnas de audit a Tabla:
-  - creacion
-  - modificacion
-  - borrado
-    - agregar borrado como un filtro por defecto?
-  - quizas una config al ORM para decirle cual es la tabla "usuario" y poder agregar modificado_por y creado_por?
-  - 
-- dirty flag (guardado)
-  - guardar snapshot de todos los campos, ordenados por nombre
-  - guardado() deja de ser una variable y mejor compara campos con el snapshot. hasheado?
-
-
 ####  relaciones de tablas
   - ManyToOne: la fk se autocrea y la matiene el orm
   - OneToMany: lazy list en el get. Si la columna inversa no tiene la relation, tirar error.
   - ManyToMany: .. por ahora no
-  
-
-#### EXCEPTIONS:
-
-- Mergear las Exceptions porque es un despelote todo
