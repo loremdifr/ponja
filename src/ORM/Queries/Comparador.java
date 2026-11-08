@@ -1,5 +1,9 @@
 package ORM.Queries;
 
+import ORM.Exceptions.Checked.ComparadorNoExisteException;
+import ORM.Exceptions.Checked.ErrorEnQueryException;
+import ORM.Exceptions.ORMException;
+
 import java.util.HashMap;
 
 public enum Comparador{
@@ -15,6 +19,8 @@ public enum Comparador{
 	NOT_ILIKE("NOT ILIKE"),
 	IS       ("IS"),
 	IS_NOT   ("IS NOT"),
+	IN       ("IN"),
+	NOT_IN   ("NOT IN"),
 	;
 
 	private final String sql_str;
@@ -34,7 +40,9 @@ public enum Comparador{
 		from_string = map;
 	}
 
-	public static Comparador fromString(String str){
-		return from_string.get(str.toLowerCase());
+	public static Comparador fromString(String str) throws ORMException{
+		final var lowercased = str.toLowerCase();
+		if(!from_string.containsKey(lowercased)) throw new ComparadorNoExisteException(str);
+		return from_string.get(lowercased);
 	};
 }

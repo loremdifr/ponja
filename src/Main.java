@@ -71,26 +71,34 @@ void main() throws ORMException{
 	var usuarios = DB.buscar(Usuario.class)
 		.where("nombre", "LIKE", "J%")
 		.orWhere("nombre", "IN", "Pedro", "Pablo")
-		.groupBy("edad")
-		.limit(12)
 		.orderBy("nombre", "ASC")
+		.limit(12)
 		.toList();
 
 	System.out.println("usuarios: " + usuarios);
 
-
 	// las funciones de SQL tienen su propio metodo:
 	var total_usuarios = DB.buscar(Usuario.class).count();
 	System.out.println("total usuarios:" + total_usuarios);
-//	var edades_promedio = SQL.buscar(Usuario.class).avg("edad");
-//	var chikitito = SQL.buscar(Usuario.class).min("edad");
-//	var grandote = SQL.buscar(Usuario.class).max("edad");
-	//	sum
-	//	distinct
 
+	// y se componen de la misma manera:
+	var menores = DB.buscar(Usuario.class)
+		.where("edad", "<", 18)
+		.count();
+	System.out.println("menores:" + menores);
 
-	// queries manuales
-//	var todos = SQL.query("SELECT * FROM usuario;").toList();
+	var jared_promedio = DB.buscar(Usuario.class)
+		.where("nombre", "jared")
+		.orWhere("nombre", "Jared")
+		.avg("edad");
+	System.out.println("edad promedio:" + jared_promedio);
+
+	// queries manuales (es un wrapper de JDBC con sintaxis menos horrible)
+	var filas = DB.query("SELECT * FROM usuario WHERE name LIKE ?", "Jared");
+	System.out.println("Usuarios con query:");
+	for(var fila : filas){
+		System.out.println(fila);
+	}
 
 	//
 

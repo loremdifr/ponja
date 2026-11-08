@@ -9,7 +9,6 @@ import ORM.Queries.*;
 import ORM.SQL.*;
 
 import javax.naming.OperationNotSupportedException;
-import javax.xml.transform.Result;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -17,7 +16,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.sql.*;
 import java.util.*;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 
@@ -183,6 +181,25 @@ public class DB{
 		}
 	}
 
+	static public ArrayList<Fila> query(String query_str, Object ...query_params)
+	throws ORMException {
+		try{
+			final var statement = conexion.prepareStatement(query_str);
+			for(int i = 0; i < query_params.length; i++){
+				final var param = query_params[i];
+				TipoColumna.valueIntoStatement(statement, i+1, param);
+			}
+
+			//TODO: map
+			return statement.executeQuery();
+			//
+		}catch(SQLTimeoutException e){
+			throw new DBTimeoutException();
+		}catch(SQLException e){
+			throw new ErrorEnQueryException(e);
+		}
+	}
+
 	static public ResultSet ejecutarQuery(Query query)
 	throws ORMException {
 		try{
@@ -204,6 +221,97 @@ public class DB{
 			return result_getter.apply(result, 1);
 		}catch(SQLException e){
 			throw new ErrorEnQueryException(e);
+		}
+	}
+
+	static public ArrayList<Fila> resultSetAFilas(ResultSet results)
+	throws ORMException {
+		try{
+			final var meta_data = results.getMetaData();
+			final var filas = new ArrayList<Fila>();
+
+			while(results.next()){
+				final var fila = new Fila();
+				for(int i = 0; i < meta_data.getColumnCount(); i++){
+					final var label = meta_data.getColumnLabel(i);
+					final var valor = results.getObject(label);
+					final var valor = TipoColumna.valueFromResult(col, results);
+					fila.put(label, valor);
+				}
+				filas.add(fila);
+			}
+			return filas;
+
+		}catch(SQLException e){
+			throw new ErrorEnQueryException(e);
+		}
+	}
+
+	static public <T extends Tabla> ArrayList<T> instanciarFilas(
+		ArrayList<Fila> filas, Class<T> tabla
+	) throws ORMException {
+		try{
+			final var snapshot = Tabla.class.getDeclaredField("_snapshot");
+			final var instancias = new ArrayList<T>();
+			final var schema = tablas.get(tabla);
+
+			for(final var fila : filas){
+				final var constructor = tabla.getConstructor();
+				constructor.setAccessible(true);
+
+				final var instancia = constructor.newInstance();
+
+				// de la fila pued tomar el valor y el label
+				// si antes el valor lo convierto al objeto correspondiente,
+				// no hace falta convertirlo.
+				// y el unico problema es identificar el field/col,
+				// que quizas con el label se puede.
+				// el otro problema es que para convertir el valor al objeto
+				// correspondiente necesariamente necesito la columna a como
+				// esta hecho ahora...
+				// lo que puedo hacer es que no se necesite la columna en esa etapa inicial?
+				// y que entonces se haga el checkeo luego si es la columna esperada.
+				// Las preguntas serian:
+				// 1. puedo convertir el valor sin la columna, guesseando de la DB por "estandar"?
+				// 2. que tan lento es?
+
+				//rellenar ojeto
+				for(var entry : schema.columnas().entrySet()){
+					final var field = entry.getKey();
+					final var col   = entry.getValue();
+
+					field.setAccessible(true);
+					field.set(instancia, valor);
+				}
+				var casted = tabla.cast(instancia);
+
+				//como viene de la DB, setteamos el hash de guardado:
+				snapshot.setAccessible(true);
+				snapshot.set(instancia, DB.hashearFila(instancia));
+
+				// agregar a la lista
+				instancias.add(casted);
+			}
+
+			return instancias;
+
+		}catch(NoSuchMethodException e){
+			throw new TablaSinConstructorVacioException(tabla);
+		}catch(SQLException e){
+			throw new ErrorEnQueryException(e);
+		}catch(InvocationTargetException e){
+			//NOTE: esto tampoco debería pasar, salvo que
+			//      el constructor tire una exception tambien
+			throw new RuntimeException(e);
+		}catch(InstantiationException e){
+			throw new TablaAbstractaException(tabla);
+		}catch(IllegalAccessException e){
+			//NOTE: esto no deberia pasar nunca porque usamos setAccessible
+			throw new FatalORMException();
+		}catch(NoSuchFieldException e){
+			//NOTE: esto no deberia pasar nunca! si sucediera es
+			//      porque la tabla no tiene mas el campo _snapshot
+			throw new FatalORMException();
 		}
 	}
 

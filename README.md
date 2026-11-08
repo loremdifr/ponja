@@ -6,6 +6,9 @@ pequenho ORM na Java
 ## TODOs
 
 - Revisar que todos los recursos (conexiones, statements, resultsets) esten siendo cerrados correctamente.
+- usar ? wildcards en el preparedstatements de la selectquery
+- validar nombres de columnas en selectquery
+- paginacion de resultados!!!
 
 #### TIPOS:
 - guardar Enums como VARCHAR

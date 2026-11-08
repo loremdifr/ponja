@@ -1,4 +1,6 @@
 package ORM.Queries;
+import ORM.Exceptions.ORMException;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -7,6 +9,22 @@ public sealed interface Where permits Where.BasicWhere, Where.NestedWhere{
 	Conector conector(); //NOTE: esto está aca para requerirlo en las impls!
 	String toString(int index);
 
+	static String valorString(Object val){
+		return switch(val){
+			case null      -> "NULL";
+			case String s  -> "'%s'".formatted(s);
+			case List<?> l -> {
+				List<String> str_list = l.stream().map(
+					Where::valorString
+				).toList();
+				yield "(%s)".formatted(
+					String.join(", ", str_list)
+				);
+			}
+			default -> val.toString();
+		};
+	}
+
 	record BasicWhere(
 		String     columna,
 		Comparador comparador,
@@ -14,26 +32,20 @@ public sealed interface Where permits Where.BasicWhere, Where.NestedWhere{
 		Conector   conector
 	) implements Where{
 
-		public BasicWhere(String columna, String comparador, Object valor){
-			this(columna, Comparador.fromString(comparador), valor, Conector.AND);
-		}
-
-		public BasicWhere(String columna, String comparador, Object valor, Conector conector){
+		public BasicWhere(String columna, String comparador, Object valor, Conector conector) throws ORMException{
 			this(columna, Comparador.fromString(comparador), valor, conector);
 		}
+
+		public BasicWhere(String columna, String comparador, Object valor) throws ORMException{
+			this(columna, comparador, valor, Conector.AND);
+		}
+
 
 		@Override
 		public String toString(int index){
 			final var str = new StringBuilder();
 			if(index > 0) str.append(" ").append(conector).append(" ");
-			final var valor_str = switch(valor){
-				case null      -> "NULL";
-				case String s  -> "'%s'".formatted(s);
-//				case List<?> l -> "(%s)".formatted(
-//					String.join(", ", l) // TODO: esto no anda asi
-//				);
-				default -> valor.toString();
-			};
+			final var valor_str = Where.valorString(valor);
 			return str.append(columna)
 					  .append(" ")
 					  .append(comparador)
@@ -41,7 +53,10 @@ public sealed interface Where permits Where.BasicWhere, Where.NestedWhere{
 					  .append(valor_str)
 				   	  .toString();
 		}
+
+
 	}
+
 
 	record NestedWhere(
 		ArrayList<Where> wheres,

@@ -120,14 +120,14 @@ public enum TipoColumna{
 	) throws ORMException {
 		try{
 			return switch(col.tipo()){
-				case BOOL     -> result.getBoolean(label);
-				case INT      -> result.getInt(label);
-				case BIGINT   -> result.getLong(label);
-				case FLOAT    -> result.getFloat(label);
-				case DOUBLE   -> result.getDouble(label);
+				case BOOL     -> result.getBoolean   (label);
+				case INT      -> result.getInt       (label);
+				case BIGINT   -> result.getLong      (label);
+				case FLOAT    -> result.getFloat     (label);
+				case DOUBLE   -> result.getDouble    (label);
 				case DECIMAL  -> result.getBigDecimal(label);
-				case VARCHAR  -> result.getString(label);
-				case TEXT     -> result.getString(label);
+				case VARCHAR  -> result.getString    (label);
+				case TEXT     -> result.getString    (label);
 				case DATE     -> {
 					var date = result.getDate(label);
 					yield date == null ? null : date.toLocalDate();
@@ -145,6 +145,7 @@ public enum TipoColumna{
 		}
 	}
 
+	//TODO: esto no deberia estar aca...
 	static public void valueIntoStatement(
 		PreparedStatement statement,
 		int index,
@@ -175,5 +176,36 @@ public enum TipoColumna{
 	static public Object valueFromResult(Columna col, ResultSet result)
 	throws ORMException{
 		return valueFromResult(col, result, col.nombre());
+	}
+
+	static public Object valueFromResult(String label, ResultSet result)
+	throws ORMException {
+		try{
+			//TODO: necesito poder extraer el tipo del resultset con el label
+			//      y en base a eso ponderar el switch
+			return switch(col.tipo()){
+				case BOOL     -> result.getBoolean   (label);
+				case INT      -> result.getInt       (label);
+				case BIGINT   -> result.getLong      (label);
+				case FLOAT    -> result.getFloat     (label);
+				case DOUBLE   -> result.getDouble    (label);
+				case DECIMAL  -> result.getBigDecimal(label);
+				case VARCHAR  -> result.getString    (label);
+				case TEXT     -> result.getString    (label);
+				case DATE     -> {
+					var date = result.getDate(label);
+					yield date == null ? null : date.toLocalDate();
+				}
+				case DATETIME -> {
+					var ts = result.getTimestamp(label);
+					yield ts == null ? null : ts.toLocalDateTime();
+				}
+				//NOTE: esto no deberia pasar nunca porque
+				//      tipoDeColumna cambia los AUTO a lo que le corresponden.
+				case AUTO -> throw new FatalORMException();
+			};
+		}catch(SQLException e){
+			throw new TipoDeColumnaIncongruenteException(col, label);
+		}
 	}
 }
