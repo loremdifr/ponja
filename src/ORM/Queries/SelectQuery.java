@@ -136,7 +136,9 @@ public final class SelectQuery implements Query{
 	//results
 	public List<? extends Tabla> toList() throws ORMException{
 		final var results = DB.ejecutarQuery(this);
-		return DB.resultSetAFilas(results, from);
+		final var filas   = DB.resultSetAFilas(results);
+		return DB.instanciarFilas(filas, from);
+
 	}
 
 	public Tabla first() throws ORMException{
