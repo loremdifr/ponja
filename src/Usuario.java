@@ -40,7 +40,7 @@ public class Usuario extends Tabla{
 	//setters
 	public void setNombre   (String  nombre)   { this.nombre = nombre; }
 	public void setEdad     (int     edad)     { this.edad   = edad;   }
-//	public void setEmpresa  (Empresa empresa)  { this.empresa = empresa; }
+	public void setEmpresa  (Empresa empresa)  { this.empresa.set(empresa); }
 	public void setBiografia(String  biografia){ this.biografia = biografia; }
 
 	@Override

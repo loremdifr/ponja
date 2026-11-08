@@ -366,17 +366,17 @@ public class DB{
 //		}
 //	}
 
-	static public SelectQuery buscar(Class<? extends Tabla> tabla){
-		return new SelectQuery(tabla);
+	static public <T extends Tabla> SelectQuery<T> buscar(Class<T> tabla){
+		return new SelectQuery<>(tabla);
 	}
 
-	static public Tabla buscarPorId(
-		Class<? extends Tabla> tabla,
+	static public <T extends Tabla> T buscarPorId(
+		Class<T> tabla,
 		Integer id
 	) throws ORMException {
 		final var schema = tablas.get(tabla);
 		if(schema == null) throw new TablaNoRegistradaException(tabla);
-		return buscar(tabla).where("id", id).first();
+		return tabla.cast(buscar(tabla).where("id", id).first());
 	}
 
 	static public void crearOActualizarTabla(Schema schema)

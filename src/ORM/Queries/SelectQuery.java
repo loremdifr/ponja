@@ -13,21 +13,22 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 
-public final class SelectQuery implements Query{
+public final class SelectQuery<T extends Tabla> implements Query{
 
 	private enum Dir {DESC, ASC}
 
-	final private Class<? extends Tabla> from;
+	final private Class<T> from;
 	final private Schema schema;
 
 	final private ArrayList<String>    select;
 	final private ArrayList<Where>     wheres;
-	final private ArrayList<String>    groupBy; //TODO:
-	final private ArrayList<Where>     having; //TODO:
+	final private ArrayList<String>    groupBy;
+	final private ArrayList<Where>     having;
 	final private HashMap<String, Dir> orderBy;
 	private Integer limit;
+	private Integer offset;
 
-	public SelectQuery(Class<? extends Tabla> from){
+	public SelectQuery(Class<T> from){
 		this.from    = from;
 		this.schema  = DB.schemaDeTabla(from);
 		this.select  = new ArrayList<>();
@@ -36,6 +37,7 @@ public final class SelectQuery implements Query{
 		this.having  = new ArrayList<>();
 		this.orderBy = new HashMap<>();
 		this.limit   = null;
+		this.offset  = null;
 
 		//el select por defecto tiene todas las columnas
 		for(final var col : schema.columnas().values()){
@@ -44,23 +46,23 @@ public final class SelectQuery implements Query{
 	}
 
 	//where
-	public SelectQuery where(String columna, String comparador, Object valor)
+	public SelectQuery<T> where(String columna, String comparador, Object valor)
 	throws ORMException{
 		final var _ = DB.getColumna(schema, columna);
 		wheres.add(new Where.BasicWhere(columna, comparador, valor));
 		return this;
 	}
 
-	public SelectQuery where(String columna, Object valor)
+	public SelectQuery<T> where(String columna, Object valor)
 	throws ORMException{ return where(columna, igualA(valor), valor); }
 
-	public SelectQuery where(String columna, String comparador, Object ...valores)
+	public SelectQuery<T> where(String columna, String comparador, Object ...valores)
 	throws ORMException{
 		return where(columna, comparador, List.of(valores));
 	}
 
 	//andWhere
-	public SelectQuery andWhere(String columna, String comparador, Object valor)
+	public SelectQuery<T> andWhere(String columna, String comparador, Object valor)
 	throws ORMException{
 		final var _ = DB.getColumna(schema, columna);
 		wheres.add(new Where.BasicWhere(
@@ -69,18 +71,18 @@ public final class SelectQuery implements Query{
 		return this;
 	}
 
-	public SelectQuery andWhere(String columna, Object valor)
+	public SelectQuery<T> andWhere(String columna, Object valor)
 	throws ORMException{
 		return andWhere(columna, igualA(valor), valor);
 	}
 
-	public SelectQuery andWhere(String columna, String comparador, Object ...valores)
+	public SelectQuery<T> andWhere(String columna, String comparador, Object ...valores)
 	throws ORMException{
 		return andWhere(columna, comparador, List.of(valores));
 	}
 
 	//orWhere
-	public SelectQuery orWhere(String columna, String comparador, Object valor)
+	public SelectQuery<T> orWhere(String columna, String comparador, Object valor)
 	throws ORMException{
 		final var _ = DB.getColumna(schema, columna);
 		wheres.add(new Where.BasicWhere(
@@ -89,30 +91,35 @@ public final class SelectQuery implements Query{
 		return this;
 	}
 
-	public SelectQuery orWhere(String columna, Object valor)
+	public SelectQuery<T> orWhere(String columna, Object valor)
 	throws ORMException{
 		return orWhere(columna, igualA(valor), valor);
 	}
 
-	public SelectQuery orWhere(String columna, String comparador, Object ...valores)
+	public SelectQuery<T> orWhere(String columna, String comparador, Object ...valores)
 	throws ORMException{
 		return orWhere(columna, comparador, List.of(valores));
 	}
 
 	//groupBy
-	public SelectQuery groupBy(String ...columnas){
+	public SelectQuery<T> groupBy(String ...columnas){
 		groupBy.clear();
 		groupBy.addAll(Arrays.asList(columnas));
 		return this;
 	}
 
-	public SelectQuery limit(int cantidad){
+	public SelectQuery<T> limit(int cantidad){
 		limit = cantidad;
 		return this;
 	}
 
+	public SelectQuery<T> offset(int cantidad){
+		offset = cantidad;
+		return this;
+	}
+
 	//orderBy
-	public SelectQuery orderBy(String ...col_dir_pairs) throws ORMException{
+	public SelectQuery<T> orderBy(String ...col_dir_pairs) throws ORMException{
 		if(col_dir_pairs.length % 2 != 0){
 			throw new OrderByImparesException();
 		}
@@ -134,7 +141,7 @@ public final class SelectQuery implements Query{
 	}
 
 	//results
-	public List<? extends Tabla> toList() throws ORMException{
+	public List<T> toList() throws ORMException{
 		final var results = DB.ejecutarQuery(this);
 		final var filas   = DB.resultSetAFilas(results);
 		return DB.instanciarFilas(filas, from);
@@ -143,6 +150,14 @@ public final class SelectQuery implements Query{
 
 	public Tabla first() throws ORMException{
 		return limit(1).toList().getFirst();
+	}
+
+	public List<T> paginar(int resultados_por_pagina, int pagina)
+	throws ORMException{
+		if (pagina < 1) pagina = 1;
+		return limit(resultados_por_pagina).offset(
+			resultados_por_pagina * (pagina - 1)
+		).toList();
 	}
 
 	public Long count() throws ORMException{
@@ -169,7 +184,7 @@ public final class SelectQuery implements Query{
 
 //	public void distinct(){ return; }
 
-	public SelectQuery select(String ...columnas){
+	public SelectQuery<T> select(String ...columnas){
 		select.clear();
 		select.addAll(Arrays.asList(columnas));
 		return this;
@@ -222,7 +237,14 @@ public final class SelectQuery implements Query{
 		}
 
 		//LIMIT
-		if(limit != null) sql_query.append(" LIMIT %s".formatted(limit));
+		if(limit != null){
+			sql_query.append(" LIMIT %s".formatted(limit));
+		}
+
+		//OFFSET
+		if(limit != null && offset != null){
+			sql_query.append(" OFFSET %s".formatted(offset));
+		}
 
 		sql_query.append(";");
 

@@ -5,8 +5,8 @@ import jdk.jshell.spi.ExecutionControl;
 
 import java.util.ArrayList;
 
-public class ManyToMany<T extends Tabla, P extends Tabla>
-implements TablaAsociada<ArrayList<T>>{
+public final class ManyToMany<T extends Tabla, P extends Tabla>
+implements RelacionEntreTablas<ArrayList<T>>{
 
 	//TODO: no estoy del todo seguro de esto
 	final private ArrayList<T> tabla;
@@ -19,6 +19,12 @@ implements TablaAsociada<ArrayList<T>>{
 	}
 
 	public ArrayList<T> get(){ return tabla; }
+
+	@Override
+	public void set(ArrayList<T> tabla_relacionada){
+
+
+	}
 
 	public boolean guardar(){ return false; } //TODO:
 }

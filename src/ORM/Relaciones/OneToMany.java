@@ -4,7 +4,8 @@ import ORM.Clases.Tabla;
 
 import java.util.ArrayList;
 
-public class OneToMany<T extends Tabla> implements TablaAsociada<ArrayList<T>>{
+public final class OneToMany<T extends Tabla>
+implements RelacionEntreTablas<ArrayList<T>>{
 
 	final private ArrayList<T> tabla;
 
@@ -13,6 +14,11 @@ public class OneToMany<T extends Tabla> implements TablaAsociada<ArrayList<T>>{
 	}
 
 	public ArrayList<T> get(){ return tabla; }
+
+	@Override
+	public void set(ArrayList<T> tabla_relacionada){
+		//TODO:
+	}
 
 	public boolean guardar(){ return false; } //TODO:
 }

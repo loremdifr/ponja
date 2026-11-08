@@ -17,7 +17,6 @@ public abstract class Tabla{
 	@NoSeGuarda
 	private long _snapshot = -1;
 
-
 	public boolean guardado() throws ORMException{
 		return _snapshot == DB.hashearFila(this);
 	}
