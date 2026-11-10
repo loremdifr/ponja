@@ -157,9 +157,10 @@ void main() throws ORMException{
 	var empresa = usr.getEmpresa(); //internamente: DB.getRelacion(empresa);
 	System.out.println("empresa desde el usr: " + empresa);
 
-//	//para remover la relacion simplemente se usa null:
-//	usr.setEmpresa(null);
-//	usr.guardar();
+	//para remover la relacion simplemente se usa null:
+	usr.setEmpresa(null);
+	usr.guardar();
+
 //	//MUY IMPORTANTE: internamente es -> DB.setRelacion(empresa, null);
 //	//                nunca debe ser  -> usr.empresa = null;
 //

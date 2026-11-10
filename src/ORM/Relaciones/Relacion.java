@@ -29,7 +29,6 @@ permits ManyToOne, OneToOne, OneToMany{
 
 	//TODO: no me gusta el nombre del param
 	public void __cargar(T fila_asociada){
-		if(cargada) return;
 		db_cache = fila_asociada;
 		cargada  = true;
 	}
