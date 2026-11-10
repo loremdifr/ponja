@@ -3,20 +3,8 @@ package ORM.Relaciones;
 import ORM.Clases.Tabla;
 
 public final class OneToOne<T extends Tabla>
-implements RelacionEntreTablas<T>{
-
-	final private T tabla;
-
-	public OneToOne(){
-		this.tabla = null;
+extends Relacion<T>{
+	public OneToOne(Class<T> tabla_asociada, Integer fk){
+		super(tabla_asociada, fk);
 	}
-
-	public T get(){ return tabla; }
-
-	@Override
-	public void set(T tabla_relacionada){
-		//TODO:
-	}
-
-	public boolean guardar(){ return false; } //TODO:
 }

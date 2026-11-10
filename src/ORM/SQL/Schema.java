@@ -6,5 +6,6 @@ import java.util.HashMap;
 public record Schema(
 	String tabla,
 	HashMap<Field, Columna> columnas,
-	Field pk
+	Field pk,
+	HashMap<Field, ClaveForanea> rels
 ){}

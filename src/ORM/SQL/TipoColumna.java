@@ -2,6 +2,7 @@ package ORM.SQL;
 
 import ORM.Exceptions.*;
 import ORM.Exceptions.Checked.*;
+import ORM.Relaciones.*;
 
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
@@ -93,6 +94,11 @@ public enum TipoColumna{
 	static public TipoColumna fromField(Field field)
 	throws ORMException{
 		final var tipo = field.getType();
+		final var tipo_fkey = TipoColumna.INT;
+		if(tipo == ManyToOne.class)     return tipo_fkey;
+		if(tipo == OneToOne.class)      return tipo_fkey;
+//		if(tipo == OneToMany.class)     return null;
+//		if(tipo == ManyToMany.class)    return null;
 		if(tipo == Boolean.class)       return TipoColumna.BOOL;
 		if(tipo == boolean.class)       return TipoColumna.BOOL;
 		if(tipo == int.class)           return TipoColumna.INT;

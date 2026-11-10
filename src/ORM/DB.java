@@ -6,6 +6,7 @@ import ORM.Exceptions.*;
 import ORM.Exceptions.Checked.*;
 import ORM.Exceptions.Unchecked.*;
 import ORM.Queries.*;
+import ORM.Relaciones.*;
 import ORM.SQL.*;
 
 import javax.naming.OperationNotSupportedException;
@@ -17,7 +18,6 @@ import java.lang.reflect.Modifier;
 import java.sql.*;
 import java.util.*;
 import java.util.stream.Collectors;
-
 
 //TODO: indices
 
@@ -32,7 +32,6 @@ public class DB{
 	private static final Connection conexion;
 	private static final Map<Class<? extends Tabla>, Schema> tablas;
 	private static final String nombre_db;
-
 
 	static {
 		var config_file = DB.class.getResourceAsStream("db.properties");
@@ -211,8 +210,8 @@ public class DB{
 		}
 	}
 
-	static public <T> T ejecutarFuncion(
-		SelectQuery query,
+	static public <T, R extends Tabla> T ejecutarFuncion(
+		SelectQuery<R> query,
 		ResultSetGetter<T> result_getter
 	) throws ORMException {
 		try(final var result = DB.ejecutarQuery(query)){
@@ -249,13 +248,14 @@ public class DB{
 		}
 	}
 
+	//hydration
 	static public <T extends Tabla> ArrayList<T> instanciarFilas(
 		ArrayList<Fila> filas, Class<T> tabla
 	) throws ORMException {
 		try{
-			final var snapshot = Tabla.class.getDeclaredField("_snapshot");
+			final var snapshot   = Tabla.class.getDeclaredField("_snapshot");
 			final var instancias = new ArrayList<T>();
-			final var schema = tablas.get(tabla);
+			final var schema     = tablas.get(tabla);
 
 			for(final var fila : filas){
 				final var constructor = tabla.getConstructor();
@@ -272,8 +272,15 @@ public class DB{
 					final var columna = getColumna(schema, label);
 					final var field   = buscarFieldParaColumna(tabla, columna);
 
-					//TODO: validar que el de la Fila sea el esperado por
-					//      la columna..?
+					//saltear fkeys
+					if(schema.rels().containsKey(field)){
+						//no rellenamos aca porque nos faltaria por ej OneToMany,
+						//que no tendria campo
+						continue;
+					}
+
+					//TODO: validar que el tipo de la Fila sea el
+					//      esperado por la columna..?
 
 					//NOTE: esto no deberia pasar nunca porque la variable
 					//      columna viene de getColumna que tira exception antes.
@@ -281,6 +288,26 @@ public class DB{
 
 					field.setAccessible(true);
 					field.set(instancia, valor);
+				}
+
+				//TODO: aca es donde hay que rellenar los campos de las
+				//      relaciones dentro de la fila usando schema.rels
+				for(final var entry : schema.rels().entrySet()){
+					final var field = entry.getKey();
+					final var fk_data = entry.getValue();
+					final var fk_value = fila.get(fk_data.fk_nombre());
+
+					final Relacion<?> rel = fk_value == null
+						? null
+						: crearRelacion(
+							//TODO: oye manito esto apesta de veras wey
+						    (Class<? extends Relacion<?>>) field.getType(),
+							fk_data.tabla_asociada(),
+							(Integer) fk_value
+						);
+
+					field.setAccessible(true);
+					field.set(instancia, rel);
 				}
 
 				var casted = tabla.cast(instancia);
@@ -312,59 +339,18 @@ public class DB{
 			throw new FatalORMException();
 		}
 	}
-//
-//	static public <T extends Tabla> ArrayList<T> resultSetAFilas(
-//		ResultSet results, Class<T> tabla
-//	) throws ORMException {
-//		try{
-//			final var snapshot = Tabla.class.getDeclaredField("_snapshot");
-//			final var filas = new ArrayList<T>();
-//			final var schema = tablas.get(tabla);
-//
-//			while(results.next()){
-//				final var constructor = tabla.getConstructor();
-//				constructor.setAccessible(true);
-//
-//				final var instancia = constructor.newInstance();
-//
-//				//rellenar ojeto
-//				for(var entry : schema.columnas().entrySet()){
-//					final var field = entry.getKey();
-//					final var col   = entry.getValue();
-//					final var valor = TipoColumna.valueFromResult(col, results);
-//					field.setAccessible(true);
-//					field.set(instancia, valor);
-//				}
-//				var casted = tabla.cast(instancia);
-//
-//				//como viene de la DB, setteamos el hash de guardado:
-//				snapshot.setAccessible(true);
-//				snapshot.set(instancia, DB.hashearFila(instancia));
-//
-//				// agregar a la lista
-//				filas.add(casted);
-//			}
-//			return filas;
-//
-//		}catch(NoSuchMethodException e){
-//			throw new TablaSinConstructorVacioException(tabla);
-//		}catch(SQLException e){
-//			throw new ErrorEnQueryException(e);
-//		}catch(InvocationTargetException e){
-//			//NOTE: esto tampoco debería pasar, salvo que
-//			//      el constructor tire una exception tambien
-//			throw new RuntimeException(e);
-//		}catch(InstantiationException e){
-//			throw new TablaAbstractaException(tabla);
-//		}catch(IllegalAccessException e){
-//			//NOTE: esto no deberia pasar nunca porque usamos setAccessible
-//			throw new FatalORMException();
-//		}catch(NoSuchFieldException e){
-//			//NOTE: esto no deberia pasar nunca! si sucediera es
-//			//      porque la tabla no tiene mas el campo _snapshot
-//			throw new FatalORMException();
-//		}
-//	}
+
+	@SuppressWarnings({"rawtypes"})
+	static private Relacion<?> crearRelacion(
+		Class<? extends Relacion> rel_clase,
+		Class<? extends Tabla> tabla_asociada,
+		Integer fk
+	) throws FatalORMException{
+		 if(rel_clase == ManyToOne.class) return new ManyToOne<>(tabla_asociada, fk);
+		 if(rel_clase == OneToOne.class)  return new OneToOne<>(tabla_asociada, fk);
+		 if(rel_clase == OneToMany.class) return new OneToMany<>(tabla_asociada, fk);
+		 throw new FatalORMException();
+	}
 
 	static public <T extends Tabla> SelectQuery<T> buscar(Class<T> tabla){
 		return new SelectQuery<>(tabla);
@@ -390,12 +376,39 @@ public class DB{
 
 	}
 
+	static public <T extends Tabla> T getRelacion(
+		Relacion<T> rel
+	){
+		if(rel.fk() == null) return null;
+		if(!rel.cargada())   return rel.db_cache();
+		try{
+			rel.__cargar(switch(rel){
+				case ManyToOne<T> r  -> buscarPorId(r.tabla_asociada(), r.fk());
+				case OneToOne<T> r   -> buscarPorId(r.tabla_asociada(), r.fk());
+				case OneToMany<T>  r -> buscarPorId(r.tabla_asociada(), r.fk());
+//				case ManyToMany<T> r -> buscarPorId(r.tabla_asociada(), r.fk());
+			});
+			return rel.db_cache();
+		}catch(ORMException e){
+			return null;
+		}
+	}
+
+	static public <T extends Tabla> void setRelacion(
+		Relacion<T> rel, T fila
+	){
+		rel.setFk(fila == null ? null : fila.getId());
+		rel.__cargar(fila);
+	}
+
 	private static void actualizarTabla(
 		Schema schema_esperado,
 		HashMap<String, Columna> cols_en_db
 	) throws ORMException{
 		//TODO: checkear bien esto
 //		if(cols_en_db..equals(schema_esperado)) return; //pero si estas igual
+
+		//TODO: usar schema.rels para crear las fkeys en la db
 
 		final var cols_esperadas = (HashMap<String, Columna>) schema_esperado
 			.columnas()
@@ -451,6 +464,7 @@ public class DB{
 
 	}
 
+
 	private static HashMap<String, Columna> extraerColumnasDB(String tabla_nombre)
 	throws ORMException{
 		try{
@@ -486,7 +500,7 @@ public class DB{
 		Class<? extends Tabla> tabla,
 		Columna aguja
 	) throws ORMException{
-		final var columnas = columnasDeTabla(tabla);
+		final var columnas = tablas.get(tabla).columnas();
 
 		for(var entry : columnas.entrySet()){
 			final var columna = entry.getValue();
@@ -535,25 +549,14 @@ public class DB{
 		throw new ColumnaAusenteException(nombre_columna, schema.tabla());
 	}
 
-	public static Columna getColumna(String nombre_tabla, String nombre_columna)
-	throws ORMException{
-		//TODO: probablemente necesito un mapa de string a tabla
-		//      para que esto sea mas rapido, porque se llama desde las queries
-		for(var schema : tablas.values()){
-			if(!schema.tabla().equals(nombre_tabla)) continue;
-			return getColumna(schema, nombre_columna);
-		}
-		throw new ColumnaAusenteException(nombre_columna, nombre_tabla);
-	}
-
 	public static Schema schemaDeTabla(Class<? extends Tabla> tabla){
 		return tablas.get(tabla);
 	}
 
 	public static long hashearFila(Tabla fila) throws ORMException{
-		final var cols = columnasDeTabla(fila.getClass());
+		final var cols = tablas.get(fila.getClass()).columnas();
 		final var cols_en_orden = cols.values().stream().sorted().toList();
-		long hashcode = 6767676767676767L; //NOTE: six seven
+		long hashcode = 6767676767676757L; //NOTE: six seven
 
 		for(var col : cols_en_orden){
 			final var valor = valorDeColumna(fila, col);
@@ -568,27 +571,18 @@ public class DB{
 	static private Schema generarSchema(
 		Class<? extends Tabla> tabla
 	) throws ORMException{
-		final var columnas = columnasDeTabla(tabla);
-		final var pk = columnas
-			.entrySet()
-			.stream()
-			.filter(es -> es.getValue().pk())
-			.toList()
-			.getFirst()
-			.getKey();
-		return new Schema(camelToSnake(tabla.getSimpleName()), columnas, pk);
-	}
-
-	static private HashMap<Field, Columna> columnasDeTabla(
-		Class<? extends Tabla> tabla
-	) throws ORMException{
-		final var columnas = new HashMap<Field, Columna>();
 		try{
+			final var nombre_tabla   = camelToSnake(tabla.getSimpleName());
 			final var clave_primaria = Tabla.class.getDeclaredField("id");
+			final var columnas       = new HashMap<Field, Columna>();
+			final var rels           = new HashMap<Field, ClaveForanea>();
 
+			//walk up the inheritance tree
 			Class<?> curr_class = tabla;
 			while(curr_class != null && curr_class != Object.class){
 				for(var field : curr_class.getDeclaredFields()){
+
+					final var field_type = field.getType();
 
 					//saltear static
 					if(Modifier.isStatic(field.getModifiers())){
@@ -609,25 +603,56 @@ public class DB{
 					}
 
 					final var es_pk    = field.equals(clave_primaria);
-					final var not_null = field.getType().isPrimitive() || es_pk;
-					columnas.put(field, new Columna(
-						nombreDeColumna(field),
-						tipoDeColumna(field),
-						not_null,
-						es_pk
-					));
+					final var not_null = field_type.isPrimitive() || es_pk;
+					final var nombre   = nombreDeColumna(field);
+					final var tipo     = tipoDeColumna(field);
+					columnas.put(field, new Columna(nombre, tipo, not_null, es_pk));
 
-					//TODO: resolver el tema de las claves foraneas
+					// si el campo es una relacion, guardamos la clase de la
+					// tabla asociada para ese campo
+					if(Relacion.class.isAssignableFrom(field_type)){
+						rels.put(field, new ClaveForanea(
+							tablaRelacionada(field), nombre
+						));
+					}
 				}
 				curr_class = curr_class.getSuperclass();
 			}
+			return new Schema(nombre_tabla, columnas, clave_primaria, rels);
 
 		}catch(NoSuchFieldException e){
 			// jamas se tira esta exception porque el parametro es
 			// Class<? extends Tabla> y Tabla tiene el campo definido
+			throw new FatalORMException();
+		}
+	}
+
+
+	//TODO: cambiar nombre
+	static private Class<? extends Tabla> tablaRelacionada(Field field)
+	throws FatalORMException{
+		final var field_type      = field.getType();
+		final var declaring_class = field.getDeclaringClass();
+
+
+		if(!Tabla.class.isAssignableFrom(declaring_class)){
+			//la relacion debe ser siempre hacia una clase que extienda Tabla
+			throw new FatalORMException();
 		}
 
-		return columnas;
+		//TODO: esto puede que este mal, creo que no es la generica?
+		final var tabla_class = declaring_class.asSubclass(Tabla.class);
+
+		if(field_type == ManyToOne.class || field_type == OneToOne.class){
+			return tabla_class;
+		}
+
+		if(field_type == OneToMany.class){
+			//TODO:
+		}
+
+		// que hiciste carlitos
+		throw new FatalORMException();
 	}
 
 	static private TipoColumna tipoDeColumna(Field field)
@@ -644,7 +669,17 @@ public class DB{
 	}
 
 	static private String nombreDeColumna(Field field){
+		final var tipo = field.getType();
+		if(tipo == ManyToOne.class)  return camelToFkey(field.getName());
+		if(tipo == OneToOne.class)   return camelToFkey(field.getName());
+		if(tipo == OneToMany.class)  return null;
+//		if(tipo == ManyToMany.class) return null;
 		return camelToSnake(field.getName());
+	}
+
+	//TODO: move these to utils?
+	static private String camelToFkey(String str){
+		return "id_" + camelToSnake(str);
 	}
 
 	static private String camelToSnake(String str){
