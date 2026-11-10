@@ -7,4 +7,8 @@ extends Relacion<T>{
 	public OneToOne(Class<T> tabla_asociada, Integer fk){
 		super(tabla_asociada, fk);
 	}
+
+	public OneToOne(Class<T> tabla_asociada){
+		super(tabla_asociada);
+	}
 }

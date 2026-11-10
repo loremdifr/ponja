@@ -8,4 +8,8 @@ extends Relacion<T>{
 		super(tabla_asociada, fk);
 	}
 
+	public ManyToOne(Class<T> tabla_asociada){
+		super(tabla_asociada);
+	}
+
 }

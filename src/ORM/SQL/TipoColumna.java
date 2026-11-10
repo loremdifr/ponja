@@ -168,6 +168,15 @@ public enum TipoColumna{
 	) throws ORMException{
 		try{
 			switch(value){
+				case Relacion<?> r -> {
+					//TODO: deberia esto ver si la col se guarda en esta tabla o en la otra?
+					final var fk_valor = r.fk();
+					if(fk_valor == null){
+						statement.setNull(index, Types.INTEGER);
+					}else{
+						statement.setInt(index, fk_valor);
+					}
+				}
 				case Integer in      -> statement.setInt       (index, in);
 				case String s        -> statement.setString    (index, s);
 				case BigDecimal b    -> statement.setBigDecimal(index, b);

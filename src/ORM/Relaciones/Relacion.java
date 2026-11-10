@@ -14,8 +14,12 @@ permits ManyToOne, OneToOne, OneToMany{
 	T db_cache      = null;
 
 	public Relacion(Class<T> tabla_asociada, Integer fk){
-		this.fk = fk;
 		this.tabla_asociada = tabla_asociada;
+		this.fk = fk;
+	}
+
+	public Relacion(Class<T> tabla_asociada){
+		this(tabla_asociada, null);
 	}
 
 	public Integer fk()             { return fk;             }

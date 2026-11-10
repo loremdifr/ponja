@@ -1,5 +1,6 @@
 import ORM.Annotations.GuardarComo;
 import ORM.Annotations.NoSeGuarda;
+import ORM.DB;
 import ORM.Exceptions.ORMException;
 import ORM.Relaciones.ManyToOne;
 import ORM.SQL.TipoColumna;
@@ -24,7 +25,7 @@ public class Usuario extends Tabla{
 
 	// las relaciones entre tablas deben expresarse usando las
 	// clases auxiliares provistas por el ORM:
-	final private ManyToOne<Empresa> empresa = new ManyToOne<>();
+	private ManyToOne<Empresa> empresa = new ManyToOne<>(Empresa.class);
 
 	// el ORM requiere que exista un constructor sin parametros,
 	// para poder instanciar las clases al devolver resultados.
@@ -51,14 +52,17 @@ public class Usuario extends Tabla{
 	public String  getBiografia(){ return biografia;     }
 
 	public Empresa getEmpresa() throws ORMException{
-		return empresa.get();
+		return DB.getRelacion(empresa);
 	}
 
 	//setters
 	public void setNombre   (String  nombre)   { this.nombre = nombre; }
 	public void setEdad     (int     edad)     { this.edad   = edad;   }
-	public void setEmpresa  (Empresa empresa)  { this.empresa.set(empresa); }
 	public void setBiografia(String  biografia){ this.biografia = biografia; }
+
+	public void setEmpresa(Empresa empresa){
+		DB.setRelacion(this.empresa, empresa);
+	}
 
 	@Override
 	public String toString(){

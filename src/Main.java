@@ -154,17 +154,17 @@ void main() throws ORMException{
 	System.out.println("globber: " + usr);
 
 	//para obtener la relacionada:
-	var empresa = usr.getEmpresa(); //internamente: usr.empresa.get();
+	var empresa = usr.getEmpresa(); //internamente: DB.getRelacion(empresa);
 	System.out.println("empresa desde el usr: " + empresa);
 
 //	//para remover la relacion simplemente se usa null:
 //	usr.setEmpresa(null);
 //	usr.guardar();
-//	//MUY IMPORTANTE: internamente es -> usr.empresa.set(null);
+//	//MUY IMPORTANTE: internamente es -> DB.setRelacion(empresa, null);
 //	//                nunca debe ser  -> usr.empresa = null;
 //
 //	//en un OneToMany, sería así: y el resultado se puede iterar
-//	var globbers = globant.getUsuarios(); // globant.usuarios.get();
+//	var globbers = globant.getUsuarios(); // DB.getRelacion(usuarios);
 //	for(var globber : globbers){
 //		//TODO:
 //	}

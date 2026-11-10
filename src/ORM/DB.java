@@ -379,8 +379,8 @@ public class DB{
 	static public <T extends Tabla> T getRelacion(
 		Relacion<T> rel
 	){
+		if(rel.cargada())    return rel.db_cache();
 		if(rel.fk() == null) return null;
-		if(!rel.cargada())   return rel.db_cache();
 		try{
 			rel.__cargar(switch(rel){
 				case ManyToOne<T> r  -> buscarPorId(r.tabla_asociada(), r.fk());
