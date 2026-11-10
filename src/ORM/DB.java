@@ -123,16 +123,42 @@ public class DB{
 	static public boolean guardar(Tabla fila)
 	throws ORMException{
 		try{
+			final var schema    = tablas.get(fila.getClass());
+
+			// antes de guardar esta instancia,
+			// hay que fijarse que todas las relaciones esten
+			// guardadas, ya que es posible que al guardarlas,
+			// se modifiquen campos dentro de esta fila
+			// (ej: usuario.id_empresa si se le creo una nueva)
+
+			for(var field : schema.rels().keySet()){
+				field.setAccessible(true);
+
+				final var rel = (Relacion<? extends Tabla>) field.get(fila);
+				final var fila_relacionada = getRelacion(rel);
+
+				if(fila_relacionada != null){
+					guardar(fila_relacionada);
+
+					//asignar la fkey si es necesaria (ManyToOne, OneToOne)
+					final var rel_class = field.getType();
+					if(rel_class == ManyToOne.class
+					|| rel_class == OneToOne.class){
+						rel.setFk(fila_relacionada.getId());
+					}
+				}
+			}
+
 			if(fila.guardado()) return true;
-			final var tabla     = tablas.get(fila.getClass());
-			final var query     = new InsertIntoQuery(tabla, fila);
+
+			//guardar
+			final var query     = new InsertIntoQuery(schema, fila);
 			final var statement = query.toPreparedStatement(conexion);
 			final var result    = statement.executeUpdate() > 0;
 
 			//rellenar PK si se creo
 			if(result && fila.getId() == null){
 				final var generated_keys = statement.getGeneratedKeys();
-				final var schema   = tablas.get(fila.getClass());
 				final var pk_field = schema.pk();
 				final var col      = schema.columnas().get(pk_field);
 
