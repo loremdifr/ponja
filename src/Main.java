@@ -161,14 +161,16 @@ void main() throws ORMException{
 	usr.setEmpresa(null);
 	usr.guardar();
 
-//	//MUY IMPORTANTE: internamente es -> DB.setRelacion(empresa, null);
-//	//                nunca debe ser  -> usr.empresa = null;
-//
-//	//en un OneToMany, sería así: y el resultado se puede iterar
-//	var globbers = globant.getUsuarios(); // DB.getRelacion(usuarios);
-//	for(var globber : globbers){
-//		//TODO:
-//	}
+	//MUY IMPORTANTE: internamente es -> DB.setRelacion(empresa, null);
+	//                nunca debe ser  -> usr.empresa = null;
+
+	//en un OneToMany, sería así: y el resultado se puede iterar
+	globant.setUsuarios(usuarios);
+	var globbers = globant.getUsuarios(); // DB.getRelacion(usuarios);
+	for(var globber : globbers){
+		//TODO:
+
+	}
 //
 //	//ya que la clave foranea la administra el ORM,
 //	//podemos buscar por Fk asi:

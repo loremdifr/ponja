@@ -25,7 +25,7 @@ public class Usuario extends Tabla{
 
 	// las relaciones entre tablas deben expresarse usando las
 	// clases auxiliares provistas por el ORM:
-	private ManyToOne<Empresa> empresa = new ManyToOne<>(Empresa.class);
+	private ManyToOne<Empresa> empresa = new ManyToOne<>(Empresa.class, "empresa");
 
 	// el ORM requiere que exista un constructor sin parametros,
 	// para poder instanciar las clases al devolver resultados.
@@ -52,7 +52,7 @@ public class Usuario extends Tabla{
 	public String  getBiografia(){ return biografia;     }
 
 	public Empresa getEmpresa() throws ORMException{
-		return DB.getRelacion(empresa);
+		return DB.getRelacion(Usuario.class, empresa);
 	}
 
 	//setters
@@ -61,7 +61,7 @@ public class Usuario extends Tabla{
 	public void setBiografia(String  biografia){ this.biografia = biografia; }
 
 	public void setEmpresa(Empresa empresa){
-		DB.setRelacion(this.empresa, empresa);
+		DB.setRelacion(Usuario.class, this.empresa, empresa);
 	}
 
 	@Override

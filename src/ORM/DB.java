@@ -117,13 +117,40 @@ public class DB{
 		}
 	}
 
+	//NOTE: este auxiliar debe existir para poder establecer
+	//      la relacion entre los tipos que recibe getRelacion
+	//      ya que en el guardar no son lo suficientemente especificos
+	//      (culpa del wildcard... no encontre otra forma mejor de resolverlo)
+	//
+	@SuppressWarnings({"unchecked"})
+	static private <T extends Tabla> void guardarRelacion(T fila, Field field)
+	throws ORMException, IllegalAccessException{
+		field.setAccessible(true);
+
+		final var fila_class = fila.getClass();
+		final var rel = (Relacion<T, ?>) field.get(fila);
+		final var fila_relacionada = getRelacion((Class<T>) fila_class, rel);
+
+		if(fila_relacionada instanceof Tabla fila_rel){
+			guardar(fila_rel);
+
+			//asignar la fkey si es necesaria (ManyToOne, OneToOne)
+			final var rel_class = field.getType();
+			if(rel_class == ManyToOne.class
+			|| rel_class == OneToOne.class){
+				rel.setFk(fila_rel.getId());
+			}
+		}
+	}
+
 	/**
 	 * TODO: Documentar..
 	 * */
 	static public boolean guardar(Tabla fila)
 	throws ORMException{
 		try{
-			final var schema    = tablas.get(fila.getClass());
+
+			final var schema = tablas.get(fila.getClass());
 
 			// antes de guardar esta instancia,
 			// hay que fijarse que todas las relaciones esten
@@ -132,21 +159,10 @@ public class DB{
 			// (ej: usuario.id_empresa si se le creo una nueva)
 
 			for(var field : schema.rels().keySet()){
-				field.setAccessible(true);
 
-				final var rel = (Relacion<? extends Tabla>) field.get(fila);
-				final var fila_relacionada = getRelacion(rel);
+				guardarRelacion(fila, field);
 
-				if(fila_relacionada != null){
-					guardar(fila_relacionada);
 
-					//asignar la fkey si es necesaria (ManyToOne, OneToOne)
-					final var rel_class = field.getType();
-					if(rel_class == ManyToOne.class
-					|| rel_class == OneToOne.class){
-						rel.setFk(fila_relacionada.getId());
-					}
-				}
 			}
 
 			if(fila.guardado()) return true;
@@ -275,6 +291,7 @@ public class DB{
 	}
 
 	//hydration
+	@SuppressWarnings({"unchecked"})
 	static public <T extends Tabla> ArrayList<T> instanciarFilas(
 		ArrayList<Fila> filas, Class<T> tabla
 	) throws ORMException {
@@ -323,11 +340,11 @@ public class DB{
 					final var fk_data = entry.getValue();
 					final var fk_value = fila.get(fk_data.fk_nombre());
 
-					final Relacion<?> rel = fk_value == null
+					final Relacion<?, ?> rel = fk_value == null
 						? null
 						: crearRelacion(
-							//TODO: oye manito esto apesta de veras wey
-						    (Class<? extends Relacion<?>>) field.getType(),
+							(Class<? extends Relacion>) field.getType(),
+							field.getName(),
 							fk_data.tabla_asociada(),
 							(Integer) fk_value
 						);
@@ -367,15 +384,16 @@ public class DB{
 	}
 
 	@SuppressWarnings({"rawtypes"})
-	static private Relacion<?> crearRelacion(
+	static private Relacion<?, ?> crearRelacion(
 		Class<? extends Relacion> rel_clase,
-		Class<? extends Tabla> tabla_asociada,
+		String rel_nombre,
+		Class<? extends Tabla> tabla, //tabla asociada
 		Integer fk
 	) throws FatalORMException{
-		 if(rel_clase == ManyToOne.class) return new ManyToOne<>(tabla_asociada, fk);
-		 if(rel_clase == OneToOne.class)  return new OneToOne<>(tabla_asociada, fk);
-		 if(rel_clase == OneToMany.class) return new OneToMany<>(tabla_asociada, fk);
-		 throw new FatalORMException();
+		if(rel_clase == ManyToOne.class) return new ManyToOne<>(tabla, rel_nombre, fk);
+		if(rel_clase == OneToOne.class)  return new OneToOne<> (tabla, rel_nombre, fk);
+		if(rel_clase == OneToMany.class) return new OneToMany<>(tabla, rel_nombre, fk);
+		throw new FatalORMException();
 	}
 
 	static public <T extends Tabla> SelectQuery<T> buscar(Class<T> tabla){
@@ -402,29 +420,76 @@ public class DB{
 
 	}
 
-	static public <T extends Tabla> T getRelacion(
-		Relacion<T> rel
+	static public <T extends Tabla> List<T> buscarPorFk(
+		Class<T> tabla,
+		String campo,
+		Integer fk
+	) throws ORMException {
+		final var schema = tablas.get(tabla);
+		if(schema == null) throw new TablaNoRegistradaException(tabla);
+		return buscar(tabla).where(campo, fk).toList();
+	}
+
+	static public <T extends Tabla, V> V getRelacion(
+		Class<T> desde, Relacion<T, V> rel
 	){
 		if(rel.cargada())    return rel.db_cache();
 		if(rel.fk() == null) return null;
 		try{
-			rel.__cargar(switch(rel){
-				case ManyToOne<T> r  -> buscarPorId(r.tabla_asociada(), r.fk());
-				case OneToOne<T> r   -> buscarPorId(r.tabla_asociada(), r.fk());
-				case OneToMany<T>  r -> buscarPorId(r.tabla_asociada(), r.fk());
-//				case ManyToMany<T> r -> buscarPorId(r.tabla_asociada(), r.fk());
-			});
+			rel.__cargar(rel.__buscar(desde));
 			return rel.db_cache();
 		}catch(ORMException e){
 			return null;
 		}
 	}
 
-	static public <T extends Tabla> void setRelacion(
-		Relacion<T> rel, T fila
-	){
-		rel.setFk(fila == null ? null : fila.getId());
-		rel.__cargar(fila);
+	public static String fk(
+		Class<? extends Tabla> desde,
+		String nombre_field
+	) throws ORMException{
+
+		//cual de las rels de la tabla es la rel que le pido?
+		for(var entry : tablas.get(desde).rels().entrySet()){
+			final var fk_field = entry.getKey();
+			final var fk_data  = entry.getValue();
+			if(fk_field.getName().equals(nombre_field)){
+				return fk_data.fk_nombre();
+			}
+		}
+		// creo que la unica explicacion de esto es que
+		// algo no este bien inicializado, o que de alguna
+		// forma la relacion no sea para con una clase que
+		// extiende Tabla correctamente..?
+		throw new FatalORMException();
+	}
+
+
+	static public <T extends Tabla, V> void setRelacion(
+		Relacion<T, V> rel, V fila_relacionada
+	) throws ORMException{
+		switch(fila_relacionada){
+			case Tabla f -> rel.setFk(f.getId());
+			case null    -> rel.setFk(null);
+			case List<?> arr -> {
+				for(final var fila_rel : arr){
+					// buscar el campo dependiente
+					// busco en tablas la fila.class
+					// y ahi busco en sus rels el campo que sea del tipo
+					// como resolver ambiguedades?
+					// ambiguedad ejemplo:
+					// empresa.usuarios_vigentes
+					// usuario.empresa_actual
+					// usuario.empresa_anterior
+					//
+
+//					final var rel_dependiente = DB.getCampoDependiente();
+//					setRelacion(rel_dependiente, rel.);
+				}
+			}
+			default -> throw new FatalORMException(); //no pasa nunca
+		}
+
+		rel.__cargar(fila_relacionada);
 	}
 
 	private static void actualizarTabla(
@@ -525,7 +590,7 @@ public class DB{
 	private static Field buscarFieldParaColumna(
 		Class<? extends Tabla> tabla,
 		Columna aguja
-	) throws ORMException{
+	){
 		final var columnas = tablas.get(tabla).columnas();
 
 		for(var entry : columnas.entrySet()){
