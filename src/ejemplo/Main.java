@@ -1,5 +1,7 @@
 import ORM.Exceptions.ORMException;
 import ORM.DB;
+import ejemplo.Empresa;
+import ejemplo.Usuario;
 
 void main() throws ORMException{
 

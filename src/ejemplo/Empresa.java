@@ -1,3 +1,5 @@
+package ejemplo;
+
 import ORM.Clases.Tabla;
 import ORM.DB;
 import ORM.Exceptions.ORMException;

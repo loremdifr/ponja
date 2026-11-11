@@ -1,3 +1,5 @@
+package ejemplo;
+
 import ORM.Annotations.GuardarComo;
 import ORM.Annotations.NoSeGuarda;
 import ORM.DB;
