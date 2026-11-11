@@ -16,7 +16,7 @@ extends Relacion<T, T>{
 	}
 
 	@Override
-	public T __buscar(Class<T> from) throws ORMException{
+	public T __buscar(Class<? extends Tabla> from) throws ORMException{
 		return DB.buscarPorId(tabla_asociada(), fk());
 	}
 }

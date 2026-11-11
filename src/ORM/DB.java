@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.ParameterizedType;
 import java.sql.*;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -431,7 +432,7 @@ public class DB{
 	}
 
 	static public <T extends Tabla, V> V getRelacion(
-		Class<T> desde, Relacion<T, V> rel
+		Class<? extends Tabla> desde, Relacion<T, V> rel
 	){
 		if(rel.cargada())    return rel.db_cache();
 		if(rel.fk() == null) return null;
@@ -697,7 +698,13 @@ public class DB{
 					final var not_null = field_type.isPrimitive() || es_pk;
 					final var nombre   = nombreDeColumna(field);
 					final var tipo     = tipoDeColumna(field);
-					columnas.put(field, new Columna(nombre, tipo, not_null, es_pk));
+
+					// las relaciones OneToMany y ManyToMany no conllevan fkeys
+					// en la tabla que las declara
+					if(field_type != OneToMany.class
+					/*|| field_type != ManyToMany.class*/){
+						columnas.put(field, new Columna(nombre, tipo, not_null, es_pk));
+					}
 
 					// si el campo es una relacion, guardamos la clase de la
 					// tabla asociada para ese campo
@@ -719,10 +726,12 @@ public class DB{
 	}
 
 
-	//TODO: cambiar nombre
+	//TODO: cambiar nombre a este metodo
+	@SuppressWarnings({"unchecked"})
 	static private Class<? extends Tabla> tablaRelacionada(Field field)
 	throws FatalORMException{
 		final var field_type      = field.getType();
+		final var generic_type    = field.getGenericType();
 		final var declaring_class = field.getDeclaringClass();
 
 
@@ -731,15 +740,17 @@ public class DB{
 			throw new FatalORMException();
 		}
 
-		//TODO: esto puede que este mal, creo que no es la generica?
-		final var tabla_class = declaring_class.asSubclass(Tabla.class);
+		if(generic_type instanceof ParameterizedType tipo_generico){
+			final var args_del_tipo = tipo_generico.getActualTypeArguments();
 
-		if(field_type == ManyToOne.class || field_type == OneToOne.class){
-			return tabla_class;
-		}
+			if(field_type == OneToMany.class
+			|| field_type == OneToOne.class
+			|| field_type == ManyToOne.class){
+				return (Class<? extends Tabla>) args_del_tipo[0];
+			}
 
-		if(field_type == OneToMany.class){
-			//TODO:
+			//TODO: ManyToMany
+
 		}
 
 		// que hiciste carlitos

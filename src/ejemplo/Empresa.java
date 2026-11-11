@@ -12,10 +12,11 @@ public class Empresa extends Tabla{
 
 	private String nombre;
 
-	private OneToMany<Usuario> usuarios = new OneToMany<>(Usuario.class);
+	private final OneToMany<Usuario> usuarios;
 
 	public Empresa(String nombre){
 		this.nombre = nombre;
+		this.usuarios = new OneToMany<>(Usuario.class, "usuarios");
 	}
 
 	public Empresa(){
@@ -28,9 +29,9 @@ public class Empresa extends Tabla{
 		return nombre;
 	}
 
-	public ArrayList<Empresa> getUsuarios()
+	public ArrayList<Usuario> getUsuarios()
 	throws ORMException{
-		return DB.getRelacion(usuarios);
+		return DB.getRelacion(Empresa.class, usuarios);
 	}
 
 	// setters
@@ -39,10 +40,10 @@ public class Empresa extends Tabla{
 		this.nombre = nombre;
 	}
 
-	public void setUsuarios(List<Usuario> usuarios){
-		DB.setRelacion(this.usuarios, usuarios);
-
+	public void setUsuarios(List<Usuario> usuarios) throws ORMException{
+		DB.setRelacion(this.usuarios, (ArrayList<Usuario>) usuarios);
 	}
+
 	@Override
 	public String toString(){ return nombre; }
 }

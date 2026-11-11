@@ -62,8 +62,8 @@ public class Usuario extends Tabla{
 	public void setEdad     (int     edad)     { this.edad   = edad;   }
 	public void setBiografia(String  biografia){ this.biografia = biografia; }
 
-	public void setEmpresa(Empresa empresa){
-		DB.setRelacion(Usuario.class, this.empresa, empresa);
+	public void setEmpresa(Empresa empresa) throws ORMException{
+		DB.setRelacion(this.empresa, empresa);
 	}
 
 	@Override

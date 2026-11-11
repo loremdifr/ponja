@@ -18,7 +18,7 @@ extends Relacion<T, ArrayList<T>>{
 	}
 
 	@Override
-	public ArrayList<T> __buscar(Class<T> desde) throws ORMException{
+	public ArrayList<T> __buscar(Class<? extends Tabla> desde) throws ORMException{
 		final var fk_nombre = DB.fk(desde, nombre());
 		return (ArrayList<T>) DB.buscarPorFk(tabla_asociada(), fk_nombre, fk());
 	}

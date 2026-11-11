@@ -29,7 +29,7 @@ permits ManyToOne, OneToOne, OneToMany{
 
 	// lamentablemente necesario porque java
 	// tiene type erasure
-	public abstract V __buscar(Class<T> from) throws ORMException;
+	public abstract V __buscar(Class<? extends Tabla> from) throws ORMException;
 
 	//TODO: no me gusta el nombre del param
 	public void __cargar(V fila_asociada){

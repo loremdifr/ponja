@@ -169,9 +169,9 @@ void main() throws ORMException{
 	//en un OneToMany, sería así: y el resultado se puede iterar
 	globant.setUsuarios(usuarios);
 	var globbers = globant.getUsuarios(); // DB.getRelacion(usuarios);
+	System.out.println("globbers:");
 	for(var globber : globbers){
-		//TODO:
-
+		System.out.println(" > " +  globber);
 	}
 //
 //	//ya que la clave foranea la administra el ORM,

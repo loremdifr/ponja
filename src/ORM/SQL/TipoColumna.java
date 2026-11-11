@@ -97,7 +97,9 @@ public enum TipoColumna{
 		final var tipo_fkey = TipoColumna.INT;
 		if(tipo == ManyToOne.class)     return tipo_fkey;
 		if(tipo == OneToOne.class)      return tipo_fkey;
-//		if(tipo == OneToMany.class)     return null;
+		//NOTE: estos NO se incluyen porque no conllevan fkey en la tabla que
+		//      los contiene:
+		if(tipo == OneToMany.class)     return null;
 //		if(tipo == ManyToMany.class)    return null;
 		if(tipo == Boolean.class)       return TipoColumna.BOOL;
 		if(tipo == boolean.class)       return TipoColumna.BOOL;
@@ -168,7 +170,7 @@ public enum TipoColumna{
 	) throws ORMException{
 		try{
 			switch(value){
-				case Relacion<?> r -> {
+				case Relacion<?,?> r -> {
 					//TODO: deberia esto ver si la col se guarda en esta tabla o en la otra?
 					final var fk_valor = r.fk();
 					if(fk_valor == null){
