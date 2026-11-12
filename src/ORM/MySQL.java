@@ -17,7 +17,7 @@ public class MySQL{
 		this("db.properties");
 	}
 
-	MySQL(String db_properties_path){
+	public MySQL(String db_properties_path){
 		this.db_properties_path = db_properties_path;
 
 		final var shutdown_hook = new Thread(

@@ -81,6 +81,7 @@ public enum TipoColumna{
 			case Types.FLOAT       -> FLOAT;
 			case Types.DOUBLE      -> DOUBLE;
 			case Types.DECIMAL     -> DECIMAL;
+			case Types.CHAR        -> VARCHAR;
 			case Types.VARCHAR     -> VARCHAR;
 			case Types.LONGVARCHAR -> TEXT;
 			case Types.TIMESTAMP   -> DATETIME;

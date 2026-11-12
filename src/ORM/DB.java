@@ -11,7 +11,6 @@ import ORM.SQL.*;
 
 import javax.naming.OperationNotSupportedException;
 
-import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
@@ -114,7 +113,7 @@ public class DB{
 
 		final var fila_class = fila.getClass();
 		final var rel = (Relacion<T, ?>) field.get(fila);
-		final var fila_relacionada = getRelacion((Class<T>) fila_class, rel);
+		final var fila_relacionada = getRelacion(fila_class, rel);
 
 		if(fila_relacionada instanceof Tabla fila_rel){
 			guardar(fila_rel);
@@ -219,6 +218,23 @@ public class DB{
 
 			final var results = statement.executeQuery();
 			return resultSetAFilas(results);
+		}catch(SQLTimeoutException e){
+			throw new DBTimeoutException();
+		}catch(SQLException e){
+			throw new ErrorEnQueryException(e);
+		}
+	}
+
+	static public int ejecutarUpdate(String query_str, Object ...query_params)
+	throws ORMException {
+		try{
+			final var statement = conexion.prepareStatement(query_str);
+			for(int i = 0; i < query_params.length; i++){
+				final var param = query_params[i];
+				TipoColumna.valueIntoStatement(statement, i + 1, param);
+			}
+
+			return statement.executeUpdate();
 		}catch(SQLTimeoutException e){
 			throw new DBTimeoutException();
 		}catch(SQLException e){

@@ -148,7 +148,7 @@ public final class SelectQuery<T extends Tabla> implements Query{
 
 	}
 
-	public Tabla first() throws ORMException{
+	public T first() throws ORMException{
 		return limit(1).toList().getFirst();
 	}
 
