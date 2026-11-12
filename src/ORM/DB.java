@@ -113,7 +113,7 @@ public class DB{
 
 		final var fila_class = fila.getClass();
 		final var rel = (Relacion<T, ?>) field.get(fila);
-		final var fila_relacionada = getRelacion(fila_class, rel);
+		final var fila_relacionada = getRelacion(fila, rel);
 
 		if(fila_relacionada instanceof Tabla fila_rel){
 			guardar(fila_rel);
@@ -275,6 +275,9 @@ public class DB{
 			while(results.next()){
 				final var fila = new Fila();
 				for(int i = 0; i < meta_data.getColumnCount(); i++){
+					//TODO: esto no esta contemplando que los valores sean o no nullabes!
+					//      por ej, para una columna int que esta en null, devuelve 0!
+
 					final var label    = meta_data.getColumnLabel(i+1);
 					final var sql_type = meta_data.getColumnType(i+1);
 					final var tipo_col = TipoColumna.fromSqlType(sql_type);
@@ -346,8 +349,6 @@ public class DB{
 						? null
 						: crearRelacion(
 							(Class<? extends Relacion>) field.getType(),
-							field.getName(),
-							fk_data.tabla_asociada(),
 							(Integer) fk_value
 						);
 
@@ -388,13 +389,11 @@ public class DB{
 	@SuppressWarnings({"rawtypes"})
 	static private Relacion<?, ?> crearRelacion(
 		Class<? extends Relacion> rel_clase,
-		String rel_nombre,
-		Class<? extends Tabla> tabla, //tabla asociada
 		Integer fk
 	) throws FatalORMException{
-		if(rel_clase == ManyToOne.class) return new ManyToOne<>(tabla, rel_nombre, fk);
-		if(rel_clase == OneToOne.class)  return new OneToOne<> (tabla, rel_nombre, fk);
-		if(rel_clase == OneToMany.class) return new OneToMany<>(tabla, rel_nombre, fk);
+		if(rel_clase == ManyToOne.class) return new ManyToOne<>(fk);
+		if(rel_clase == OneToOne.class)  return new OneToOne<> (fk);
+		if(rel_clase == OneToMany.class) return new OneToMany<>(fk);
 		throw new FatalORMException();
 	}
 
@@ -433,38 +432,35 @@ public class DB{
 	}
 
 	static public <T extends Tabla, V> V getRelacion(
-		Class<? extends Tabla> desde, Relacion<T, V> rel
-	){
-		if(rel.cargada())    return rel.db_cache();
-		if(rel.fk() == null) return null;
+		Tabla desde,
+		Relacion<T, V> rel
+	) throws ORMException{
 		try{
-			rel.__cargar(rel.__buscar(desde));
-			return rel.db_cache();
+			if(rel == null)      return null;
+			if(rel.cargada())    return rel.db_cache();
+			if(rel.fk() == null) return null;
+
+			//buscar campo correspondiente a la rel
+			//TODO: esto deberia estar cacheado..
+			final var rels = tablas.get(desde.getClass()).rels();
+			for(var rel_entry : rels.entrySet()){
+				final var field   = rel_entry.getKey();
+				final var fk_data = rel_entry.getValue();
+				field.setAccessible(true);
+
+				if(field.get(desde) == rel){
+					final var datos = rel.__buscar(fk_data);
+					rel.__cargar(datos);
+					return rel.db_cache();
+				}
+			}
+			throw new FatalORMException(); //no existe el field de la relacion!
 		}catch(ORMException e){
 			return null;
+		}catch(IllegalAccessException e){
+			throw new FatalORMException(); // no deberia ser posible nunca esto
 		}
 	}
-
-	public static String fk(
-		Class<? extends Tabla> desde,
-		String nombre_field
-	) throws ORMException{
-
-		//cual de las rels de la tabla es la rel que le pido?
-		for(var entry : tablas.get(desde).rels().entrySet()){
-			final var fk_field = entry.getKey();
-			final var fk_data  = entry.getValue();
-			if(fk_field.getName().equals(nombre_field)){
-				return fk_data.fk_nombre();
-			}
-		}
-		// creo que la unica explicacion de esto es que
-		// algo no este bien inicializado, o que de alguna
-		// forma la relacion no sea para con una clase que
-		// extiende Tabla correctamente..?
-		throw new FatalORMException();
-	}
-
 
 	static public <T extends Tabla, V> void setRelacion(
 		Relacion<T, V> rel, V fila_relacionada
@@ -695,7 +691,7 @@ public class DB{
 
 					final var es_pk    = field.equals(clave_primaria);
 					final var not_null = field_type.isPrimitive() || es_pk;
-					final var nombre   = nombreDeColumna(field);
+					final var nombre   = nombreDeColumna(tabla, field);
 					final var tipo     = tipoDeColumna(field);
 
 					// las relaciones OneToMany y ManyToMany no conllevan fkeys
@@ -769,13 +765,13 @@ public class DB{
 		return TipoColumna.fromField(field);
 	}
 
-	static private String nombreDeColumna(Field field){
+	static private String nombreDeColumna(Class<? extends Tabla> tabla, Field field){
 		final var tipo = field.getType();
 		if(tipo == ManyToOne.class)  return camelToFkey(field.getName());
 		if(tipo == OneToOne.class)   return camelToFkey(field.getName());
-		if(tipo == OneToMany.class)  return null;
+		if(tipo == OneToMany.class)  return "id_" + camelToSnake(tabla.getSimpleName());
 //		if(tipo == ManyToMany.class) return null;
-		return camelToSnake(field.getName());
+		return camelToSnake(field.getName()); //TODO: throw mejor?
 	}
 
 	//TODO: move these to utils?

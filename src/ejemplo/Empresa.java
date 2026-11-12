@@ -11,12 +11,11 @@ import java.util.List;
 public class Empresa extends Tabla{
 
 	private String nombre;
-
 	private final OneToMany<Usuario> usuarios;
 
 	public Empresa(String nombre){
 		this.nombre = nombre;
-		this.usuarios = new OneToMany<>(Usuario.class, "usuarios");
+		this.usuarios = new OneToMany<>();
 	}
 
 	public Empresa(){
@@ -31,7 +30,7 @@ public class Empresa extends Tabla{
 
 	public ArrayList<Usuario> getUsuarios()
 	throws ORMException{
-		return DB.getRelacion(Empresa.class, usuarios);
+		return DB.getRelacion(this, usuarios);
 	}
 
 	// setters
