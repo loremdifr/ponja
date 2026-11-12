@@ -6,14 +6,17 @@ import ORM.SQL.ClaveForanea;
 
 //import java.lang.reflect.Field;
 
+//TODO: ya no hace falta el T extends tabla..?
 public abstract sealed class Relacion<T extends Tabla, V>
 permits ManyToOne, OneToOne, OneToMany{
 
 	//NOTE: el tipo de la FK tiene que coincidir con
 	//      el tipo del id definido en Tabla.
-	Integer fk      = null;
-	boolean cargada = false;
-	V db_cache      = null;
+	Integer fk        = null;
+	boolean cargada   = false;
+	V cache_db        = null;
+//	V cache_prev      = null;
+	boolean pendiente = false; //TODO: renombrar a guardada?
 
 	public Relacion(Integer fk){ this.fk = fk; }
 	public Relacion(){ this(null); }
@@ -24,17 +27,25 @@ permits ManyToOne, OneToOne, OneToMany{
 
 	//TODO: no me gusta el nombre del param
 	public void __cargar(V fila_asociada){
-		db_cache = fila_asociada;
+//		if(cargada) cache_prev = cache_db;
+		cache_db = fila_asociada;
 		cargada  = true;
 	}
 
+	public void __invalidarCache(){
+		cache_db = null;
+		cargada  = false;
+	}
+
 	// getteers
-	public Integer fk()      { return fk;       }
-	public boolean cargada() { return cargada;  }
-	public V db_cache()      { return db_cache; }
+	public Integer fk()         { return fk;         }
+	public boolean cargada()    { return cargada;    }
+	public V       cache_db()   { return cache_db;   }
+//	public V       cache_prev() { return cache_prev; }
+	public boolean pendiente()  { return pendiente;  }
 
-	// setter (singular)
+	// setters
 	public void setFk(Integer fk){ this.fk = fk; }
-
+	public void setPendiente(boolean pendiente) { this.pendiente = pendiente; }
 
 }

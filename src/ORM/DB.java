@@ -16,6 +16,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.sql.*;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -69,6 +70,7 @@ public class DB{
 			? new MySQL()
 			: new MySQL(archivo_config);
 
+		//TODO: cambiar esta exception kjj
 		if(!tablas.isEmpty()) throw new NoLeisteElReadmeException();
 
 		for(final var clase : clases){
@@ -80,6 +82,53 @@ public class DB{
 	//		Utils.prettyPrint(tablas);
 		}
 
+		//validar relaciones
+		for(final var tabla_entry : tablas.entrySet()){
+			final var tabla_class = tabla_entry.getKey();
+			final var schema      = tabla_entry.getValue();
+
+			siguiente_rel:
+			for(final var rel_entry : schema.rels().entrySet()){
+				final var field   = rel_entry.getKey();
+				final var fk_data = rel_entry.getValue();
+				if(field.getType() != OneToMany.class) continue;
+
+				final var tabla_esperada = fk_data.tabla_asociada();
+				final var fkey_esperada  = fk_data.fk_nombre();
+
+				//la otra tabla tiene la fkey?
+				final var tabla_asociada = tablas.get(tabla_esperada);
+				if(tabla_asociada == null){
+					throw new TablaNoRegistradaException(tabla_esperada);
+				}
+
+
+				for(final var col_entry : tabla_asociada.columnas().entrySet()){
+					final var col_field = col_entry.getKey();
+					final var col       = col_entry.getValue();
+
+					if(!col.nombre().equals(fkey_esperada)) continue;
+					if(col_field.getType() != ManyToOne.class
+					&& col_field.getType() != OneToOne.class) continue;
+
+					final var rel_inversa = tabla_asociada.rels().get(col_field);
+
+					if(rel_inversa == null) continue;
+					if(rel_inversa.tabla_asociada() != tabla_class) continue;
+					if(!fkey_esperada.equals(rel_inversa.fk_nombre())) continue;
+
+					//fkey correspondiente encontrada!
+					break siguiente_rel;
+				}
+
+				throw new ClaveForaneaFaltanteException(
+					field, schema, fkey_esperada, tabla_asociada
+				);
+			}
+		}
+
+
+		//modificar DB
 		for(var schema : tablas.values()){
 			crearOActualizarTabla(schema);
 		}
@@ -107,11 +156,16 @@ public class DB{
 	//      (culpa del wildcard... no encontre otra forma mejor de resolverlo)
 	//
 	@SuppressWarnings({"unchecked"})
-	static private <T extends Tabla> void guardarRelacion(T fila, Field field)
+	static private <T extends Tabla> void guardarAnyToOneRelacion(T fila, Field field)
 	throws ORMException, IllegalAccessException{
 		field.setAccessible(true);
+		final var rel_class = field.getType();
 
-		final var fila_class = fila.getClass();
+		//no hay nada que asignar en esta fila
+		if(rel_class == OneToMany.class){
+			return;
+		}
+
 		final var rel = (Relacion<T, ?>) field.get(fila);
 		final var fila_relacionada = getRelacion(fila, rel);
 
@@ -119,12 +173,133 @@ public class DB{
 			guardar(fila_rel);
 
 			//asignar la fkey si es necesaria (ManyToOne, OneToOne)
-			final var rel_class = field.getType();
 			if(rel_class == ManyToOne.class
 			|| rel_class == OneToOne.class){
 				rel.setFk(fila_rel.getId());
 			}
 		}
+	}
+
+	@SuppressWarnings({"unchecked"})
+	static private <T extends Tabla> void guardarOneToManyRelacion(
+		T fila, Field field
+	) throws ORMException, IllegalAccessException{
+		field.setAccessible(true);
+
+		if(field.getType() != OneToMany.class){
+			return;
+		}
+
+		final var rel = (Relacion<T, ?>) field.get(fila);
+		if(!rel.pendiente()) return;
+
+		final var id = fila.getId();
+
+		if(id == null) return;
+		rel.setPendiente(false);
+		rel.setFk(id);
+
+		final var schema      = tablas.get(fila.getClass());
+		final var fk_data     = schema.rels().get(field);
+		final var fk_col      = fk_data.fk_nombre();
+		final var schema_asoc = tablas.get(fk_data.tabla_asociada());
+
+		for(var rel_entry : schema_asoc.rels().entrySet()){
+			final var fk_data_asoc    = rel_entry.getValue();
+			final var field_asoc      = rel_entry.getKey();
+			final var field_asoc_type = field_asoc.getType();
+
+			if(field_asoc_type != ManyToOne.class
+			&& field_asoc_type != OneToOne.class){
+				continue;
+			}
+
+			//la asociada de la asociada soy yo!?
+			if(fk_data_asoc.tabla_asociada() != fila.getClass()) continue;
+			if(!fk_data_asoc.fk_nombre().equals(fk_col))         continue;
+
+			//lo encontramos carlitos!
+			field_asoc.setAccessible(true);
+
+			final var fkeys_anteriores = query(
+				"SELECT id FROM %s WHERE %s = ?".formatted(
+					schema_asoc.tabla(), fk_col), id
+			).stream().map(f -> f.get("id")).toList();
+
+			final var cache = rel.cache_db();
+			final List<? extends Tabla> filas_asoc = (cache == null)
+				? List.<Tabla>of()
+				: (List<? extends Tabla>) cache;
+
+			final var update_ids = new ArrayList<Integer>();
+
+			//ahora si inyectamos el valor de la fkey en todos los asociados
+			for(var fila_asoc : filas_asoc){
+				final var rel_asoc = (Relacion<Tabla, ?>) field_asoc.get(fila_asoc);
+
+				rel_asoc.setFk(id); //llegamos... al fin...
+
+				if(fila_asoc.getId() == null){
+					guardar(fila_asoc);
+					continue;
+				}
+
+				update_ids.add(fila_asoc.getId());
+			}
+
+			//batch update porque si no va muy lerdo vistes
+			if(!update_ids.isEmpty()){
+				final var query = "UPDATE %s SET %s = ?, modificado = ? WHERE id IN (%s)";
+				final var params = new ArrayList<Object>(
+					List.of(id, LocalDateTime.now())
+				);
+
+				params.addAll(update_ids);
+
+				ejecutarUpdate(query.formatted(
+					schema_asoc.tabla(),
+					fk_col,
+					String.join(", ", update_ids.stream().map(_ -> "?").toList())
+				), params.toArray());
+
+				//invalidar cache, para que la proxima vez que se acceda
+				//a los datos relacionados se vuelvan a buscar desde la DB
+				rel.__invalidarCache();
+
+			}
+
+			// hay que desasociar los que estaban asociados en la DB
+			// pero fueron quitados de la lista
+			final var en_lista = filas_asoc.stream().map(Tabla::getId).toList();
+			final var borrados = fkeys_anteriores.stream().filter(
+				_id -> !en_lista.contains((Integer) _id)
+			).toList();
+			if(!borrados.isEmpty()){
+				//TODO: esto es muy similar a lo anterior, se puede refactorear luego
+				final var query = "UPDATE %s SET %s = NULL, modificado = ? WHERE id IN (%s)";
+				final var params = new ArrayList<Object>(
+					List.of(LocalDateTime.now())
+				);
+
+				params.addAll(borrados);
+
+				ejecutarUpdate(query.formatted(
+					schema_asoc.tabla(),
+					fk_col,
+					String.join(", ", borrados.stream().map(_ -> "?").toList())
+				), params.toArray());
+
+				//invalidar cache, para que la proxima vez que se acceda
+				//a los datos relacionados se vuelvan a buscar desde la DB
+				rel.__invalidarCache();
+			}
+
+
+			return; // mis detractores diran que esta funcion deberia haber
+					// sido una clase, pero lo que ellos no saben es que- *lo matan*
+		}
+		//si llegamos hasta aca, es porque no existia la fkey en la otra tabla
+		throw new FatalORMException(); //peeeeero, no deberia pasar nunca
 	}
 
 	/**
@@ -141,38 +316,50 @@ public class DB{
 			// guardadas, ya que es posible que al guardarlas,
 			// se modifiquen campos dentro de esta fila
 			// (ej: usuario.id_empresa si se le creo una nueva)
+			// esto solo aplica a las relaciones cuya ID se guardan
+			// en esta tabla (OneToOne y ManyToOne)
 
 			for(var field : schema.rels().keySet()){
-
-				guardarRelacion(fila, field);
-
-
+				guardarAnyToOneRelacion(fila, field);
 			}
 
-			if(fila.guardado()) return true;
+			var result = true;
 
-			//guardar
-			final var query     = new InsertIntoQuery(schema, fila);
-			try(var statement = query.toPreparedStatement(conexion)){
-				final var result = statement.executeUpdate() > 0;
-				//rellenar PK si se creo
-				if(result && fila.getId() == null){
-					final var generated_keys = statement.getGeneratedKeys();
-					final var pk_field = schema.pk();
-					final var col      = schema.columnas().get(pk_field);
+			//guardar si hace falta
+			if(!fila.guardado()){
+				final var query = new InsertIntoQuery(schema, fila);
+				try(var statement = query.toPreparedStatement(conexion)){
 
-					generated_keys.next(); //TODO: assert
+					//guardar
+					result = statement.executeUpdate() > 0;
 
-					final var nueva_id = TipoColumna.valueFromResult(
-						col, generated_keys, "GENERATED_KEY"
-					);
-					pk_field.setAccessible(true);
-					pk_field.set(fila, nueva_id);
+					//rellenar PK si se creo
+					if(result && fila.getId() == null){
+						final var generated_keys = statement.getGeneratedKeys();
+						final var pk_field       = schema.pk();
+						final var col            = schema.columnas().get(pk_field);
+
+						generated_keys.next(); //TODO: assert
+
+						final var nueva_id = TipoColumna.valueFromResult(
+							col, generated_keys, "GENERATED_KEY"
+						);
+						pk_field.setAccessible(true);
+						pk_field.set(fila, nueva_id);
+					}
 				}
-
-				return result;
 			}
 
+			// guardar OneToMany, esta se hace despues porque se les tiene que
+			// insertar el ID de esta fila, y necesitamos guardarla en caso de
+			// que no tenga ID aun. (osea al guardar empresa.usuarios, queremos
+			// primero asegurarnos que la empresa tenga ID, para despues hacer
+			// el update del id_empresa en todos los usuarios correspondientes.)
+			for(var field : schema.rels().keySet()){
+				guardarOneToManyRelacion(fila, field);
+			}
+
+			return result;
 		}catch(SQLException e){
 			throw new GuardadoFallidoException(fila);
 		}catch(IllegalAccessException e){
@@ -341,16 +528,16 @@ public class DB{
 				//TODO: aca es donde hay que rellenar los campos de las
 				//      relaciones dentro de la fila usando schema.rels
 				for(final var entry : schema.rels().entrySet()){
-					final var field = entry.getKey();
-					final var fk_data = entry.getValue();
-					final var fk_value = fila.get(fk_data.fk_nombre());
+					final var field    = entry.getKey();
+					final var fk_data  = entry.getValue();
+					final var fk_value = (field.getType() == OneToMany.class)
+						? instancia.getId()
+						: fila.get(fk_data.fk_nombre());
 
-					final Relacion<?, ?> rel = fk_value == null
-						? null
-						: crearRelacion(
-							(Class<? extends Relacion>) field.getType(),
-							(Integer) fk_value
-						);
+					final Relacion<?, ?> rel = crearRelacion(
+						(Class<? extends Relacion>) field.getType(),
+						(Integer) fk_value
+					);
 
 					field.setAccessible(true);
 					field.set(instancia, rel);
@@ -437,7 +624,7 @@ public class DB{
 	) throws ORMException{
 		try{
 			if(rel == null)      return null;
-			if(rel.cargada())    return rel.db_cache();
+			if(rel.cargada())    return rel.cache_db();
 			if(rel.fk() == null) return null;
 
 			//buscar campo correspondiente a la rel
@@ -451,7 +638,7 @@ public class DB{
 				if(field.get(desde) == rel){
 					final var datos = rel.__buscar(fk_data);
 					rel.__cargar(datos);
-					return rel.db_cache();
+					return rel.cache_db();
 				}
 			}
 			throw new FatalORMException(); //no existe el field de la relacion!
@@ -466,23 +653,11 @@ public class DB{
 		Relacion<T, V> rel, V fila_relacionada
 	) throws ORMException{
 		switch(fila_relacionada){
-			case Tabla f -> rel.setFk(f.getId());
-			case null    -> rel.setFk(null);
-			case List<?> arr -> {
-				for(final var fila_rel : arr){
-					// buscar el campo dependiente
-					// busco en tablas la fila.class
-					// y ahi busco en sus rels el campo que sea del tipo
-					// como resolver ambiguedades?
-					// ambiguedad ejemplo:
-					// empresa.usuarios_vigentes
-					// usuario.empresa_actual
-					// usuario.empresa_anterior
-					//
-
-//					final var rel_dependiente = DB.getCampoDependiente();
-//					setRelacion(rel_dependiente, rel.);
-				}
+			case Tabla f   -> rel.setFk(f.getId());   //ManyToOne, OneToOne
+			case List<?> _ -> rel.setPendiente(true); //OneToMany
+			case null      -> {                       //ambos casos
+				rel.setPendiente(true);
+				rel.setFk(null);
 			}
 			default -> throw new FatalORMException(); //no pasa nunca
 		}

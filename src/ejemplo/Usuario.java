@@ -27,7 +27,7 @@ public class Usuario extends Tabla{
 
 	// las relaciones entre tablas deben expresarse usando las
 	// clases auxiliares provistas por el ORM:
-	private final ManyToOne<Empresa> empresa;
+	private ManyToOne<Empresa> empresa;
 
 	// el ORM requiere que exista un constructor sin parametros,
 	// para poder instanciar las clases al devolver resultados.
