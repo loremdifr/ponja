@@ -56,9 +56,11 @@ public final class SelectQuery<T extends Tabla> implements Query{
 	public SelectQuery<T> where(String columna, Object valor)
 	throws ORMException{ return where(columna, igualA(valor), valor); }
 
-	public SelectQuery<T> where(String columna, String comparador, Object ...valores)
+	public SelectQuery<T> where(String columna, String comparador, Object valor, Object ...valores)
 	throws ORMException{
-		return where(columna, comparador, List.of(valores));
+		final var vals = new ArrayList<>(List.of(valores));
+		vals.add(valor);
+		return where(columna, comparador, vals);
 	}
 
 	//andWhere
@@ -76,9 +78,11 @@ public final class SelectQuery<T extends Tabla> implements Query{
 		return andWhere(columna, igualA(valor), valor);
 	}
 
-	public SelectQuery<T> andWhere(String columna, String comparador, Object ...valores)
+	public SelectQuery<T> andWhere(String columna, String comparador, Object valor, Object ...valores)
 	throws ORMException{
-		return andWhere(columna, comparador, List.of(valores));
+		final var vals = new ArrayList<>(List.of(valores));
+		vals.add(valor);
+		return andWhere(columna, comparador, vals);
 	}
 
 	//orWhere
@@ -96,9 +100,11 @@ public final class SelectQuery<T extends Tabla> implements Query{
 		return orWhere(columna, igualA(valor), valor);
 	}
 
-	public SelectQuery<T> orWhere(String columna, String comparador, Object ...valores)
+	public SelectQuery<T> orWhere(String columna, String comparador, Object valor, Object ...valores)
 	throws ORMException{
-		return orWhere(columna, comparador, List.of(valores));
+		final var vals = new ArrayList<>(List.of(valores));
+		vals.add(valor);
+		return orWhere(columna, comparador, vals);
 	}
 
 	//groupBy

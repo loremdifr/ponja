@@ -5,15 +5,10 @@
 - validar nombres de columnas en selectquery
 
 # URGENTE:
-- case List<?> en DB::setRelacion
-- DB::borrar() ta roto
-- Soft-delete no filtra
-- NULL ints se cargan como 0 en TipoColumna.valueFromResult
 - Tabla::guardar() cambia el modificado ANTES de que DB::guardar() compruebe si esta guardado(), lo que hace que siempre se guarde! Tabla::guardar() tendria que checkear el guardado por si misma?
 - Where faltan las wildcards no es muy segura
 - Foreign key constraints en las tablas
 - Indices para buscar
-
 
 
 ## TIPOS:

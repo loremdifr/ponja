@@ -379,12 +379,14 @@ public class DB{
 
 			final var field = Tabla.class.getDeclaredField("borrado");
 			field.setAccessible(true);
-			field.set(fila, true);
+			field.set(fila, LocalDateTime.now());
 
-			final var result = guardar(fila);
+			//NOTE: borramos a traves de la tabla para que se actualicen
+			//      tanto los campos audit como el snapshot
+			final var result = fila.guardar();
 
 			//si fallo el guardado, revertir el campo "borrado"
-			if(!result) field.set(fila, false);
+			if(!result) field.set(fila, null);
 
 			return result;
 		}catch(NoSuchFieldException e){
@@ -584,8 +586,18 @@ public class DB{
 		throw new FatalORMException();
 	}
 
-	static public <T extends Tabla> SelectQuery<T> buscar(Class<T> tabla){
+	static public <T extends Tabla> SelectQuery<T> buscar(Class<T> tabla)
+	throws ORMException{
+		return new SelectQuery<>(tabla).where("borrado", null);
+	}
+
+	static public <T extends Tabla> SelectQuery<T> buscarConBorrados(Class<T> tabla){
 		return new SelectQuery<>(tabla);
+	}
+
+	static public <T extends Tabla> SelectQuery<T> buscarBorrados(Class<T> tabla)
+	throws ORMException{
+		return new SelectQuery<>(tabla).where("borrado", "IS NOT", null);
 	}
 
 	static public <T extends Tabla> T buscarPorId(
@@ -594,7 +606,11 @@ public class DB{
 	) throws ORMException {
 		final var schema = tablas.get(tabla);
 		if(schema == null) throw new TablaNoRegistradaException(tabla);
-		return tabla.cast(buscar(tabla).where("id", id).first());
+		try{
+			return tabla.cast(buscar(tabla).where("id", id).first());
+		}catch(NoSuchElementException _){
+			return null;
+		}
 	}
 
 	static public void crearOActualizarTabla(Schema schema)

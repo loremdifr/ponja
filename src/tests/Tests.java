@@ -392,6 +392,31 @@ public class Tests{
 
 	}
 
+	public void testBorrar() throws ORMException{
+		_truncarTablas();
+		final var usr = new Usuario("qwe", 123, "asd");
+		usr.guardar();
+		assertTrue(usr.borrar(), "fallo al borrar");
+		assertTrue(usr.borrado(), "borrar no actualiza el .borrado()");
+		assertTrue(usr.guardado(), "borrar no actualiza el .guardad()");
+
+		//test soft-delete aun existe
+		final var filas = DB.query(
+			"SELECT borrado FROM usuario WHERE id = ?", usr.getId()
+		);
+		assertEquals(1, filas.size(), "borrar borro inesperadamente");
+		assertTrue(filas.getFirst().get("borrado") != null, "borrado no pone timestamp");
+		assertTrue(usr.borrar(), "borrar lo borrado no devuelve true");
+		assertEquals(null, DB.buscarPorId(Usuario.class, usr.getId()), "buscarPorId no filtra borrados");
+
+		final var usr2 = new Usuario("asd", 321, "qwe");
+		usr2.guardar();
+		assertEquals(1L, DB.buscarBorrados(Usuario.class).count(), "buscarBorrados no incluye borrados");
+		assertEquals(usr.getId(), DB.buscarBorrados(Usuario.class).first().getId(), "buscarBorrados no incluye borrados");
+		assertEquals(2L, DB.buscarConBorrados(Usuario.class).count(), "buscarConBorrados falla");
+	}
+
+
 	// ---
 
 	static void main(){
