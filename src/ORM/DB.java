@@ -140,7 +140,11 @@ public class DB{
 		final var field = DB.buscarFieldParaColumna(fila.getClass(), columna);
 		Objects.requireNonNull(field).setAccessible(true);
 		try{
-			return field.get(fila);
+			final var valor = field.get(fila);
+			if(valor instanceof Relacion<?,?> rel){
+				return rel.fk();
+			}
+			return valor;
 		} catch(IllegalAccessException e){
 			// NOTE: esto no debería pasar nunca salvo que se haya
 			//       modificado la DB mientras la app está funcionando.
@@ -330,6 +334,9 @@ public class DB{
 
 			//guardar si hace falta
 			if(!fila.guardado()){
+				final var audit_prev = fila.__getAuditFields();
+				fila.__setAuditFields(LocalDateTime.now());
+
 				final var query = new InsertIntoQuery(schema, fila);
 				try(var statement = query.toPreparedStatement(conexion)){
 
@@ -350,6 +357,10 @@ public class DB{
 						pk_field.setAccessible(true);
 						pk_field.set(fila, nueva_id);
 					}
+				}catch(SQLException e){
+					//revertir audit y volver a tirar
+					fila.__setAuditFields(audit_prev);
+					throw e;
 				}
 			}
 

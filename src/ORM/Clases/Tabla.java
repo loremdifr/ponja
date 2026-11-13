@@ -27,24 +27,8 @@ public abstract class Tabla{
 
 	public boolean guardar()
 	throws ORMException {
-		//campos de audit (creado y modificado)
-		final var ahora           = LocalDateTime.now();
-		final var prev_creado     = creado;
-		final var prev_modificado = modificado;
-		creado     = (creado != null) ? creado : ahora;
-		modificado = ahora;
-
 		final var guardado = DB.guardar(this);
-
-		if(guardado){
-			 _snapshot = DB.hashearFila(this);
-		}else{
-			// resetear creado y modificado
-			// si fallo el guardado
-			creado     = prev_creado;
-			modificado = prev_modificado;
-		}
-
+		if(guardado) _snapshot = DB.hashearFila(this);
 		return guardado;
 	}
 
@@ -60,5 +44,24 @@ public abstract class Tabla{
 	public final Integer       getId()         { return id;         }
 	public final LocalDateTime getModificado() { return modificado; }
 	public final LocalDateTime getCreado()     { return creado;     }
+
+
+	// audit fields black magic
+	// es un arreglo y el orden es importante, lo usa solamente DB
+	public final LocalDateTime[] __getAuditFields(){
+		return new LocalDateTime[]{modificado, creado};
+	}
+
+	public final void __setAuditFields(LocalDateTime[] audit_fields){
+		//TODO: assert que sean dos
+		this.modificado = audit_fields[0];
+		this.creado     = audit_fields[1];
+	}
+
+	public final void __setAuditFields(LocalDateTime timestamp){
+		if(creado == null) creado = timestamp;
+		modificado = timestamp;
+	}
+
 
 }
