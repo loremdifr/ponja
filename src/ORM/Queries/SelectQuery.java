@@ -12,6 +12,10 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.stream.Stream;
+
+import static ORM.Queries.Where.*;
+import static ORM.Queries.Where.NestedWhere.NestedWhereFunction;
 
 public final class SelectQuery<T extends Tabla> implements Query{
 
@@ -19,22 +23,25 @@ public final class SelectQuery<T extends Tabla> implements Query{
 
 	final private Class<T> from;
 	final private Schema schema;
+	final private NestedWhere base_filter; //el where final es (base_filter) AND (where)
 
 	final private ArrayList<String>    select;
-	final private ArrayList<Where>     wheres;
+	final private NestedWhere          where;
 	final private ArrayList<String>    groupBy;
-	final private ArrayList<Where>     having;
+	final private NestedWhere          having;
 	final private HashMap<String, Dir> orderBy;
 	private Integer limit;
 	private Integer offset;
 
-	public SelectQuery(Class<T> from){
-		this.from    = from;
+	public SelectQuery(Class<T> from, NestedWhere base_filter){
+		this.from        = from;
+		this.base_filter = base_filter;
+
 		this.schema  = DB.schemaDeTabla(from);
 		this.select  = new ArrayList<>();
-		this.wheres  = new ArrayList<>();
+		this.where   = new NestedWhere();
 		this.groupBy = new ArrayList<>();
-		this.having  = new ArrayList<>();
+		this.having  = new NestedWhere();
 		this.orderBy = new HashMap<>();
 		this.limit   = null;
 		this.offset  = null;
@@ -45,11 +52,13 @@ public final class SelectQuery<T extends Tabla> implements Query{
 		}
 	}
 
+	public SelectQuery(Class<T> from){ this(from, new NestedWhere()); }
+
 	//where
 	public SelectQuery<T> where(String columna, String comparador, Object valor)
 	throws ORMException{
 		final var _ = DB.getColumna(schema, columna);
-		wheres.add(new Where.BasicWhere(columna, comparador, valor));
+		where.and(columna, comparador, valor);
 		return this;
 	}
 
@@ -64,43 +73,35 @@ public final class SelectQuery<T extends Tabla> implements Query{
 		return where(columna, comparador, vals);
 	}
 
-	//andWhere
-	public SelectQuery<T> andWhere(String columna, String comparador, Object valor)
+	public SelectQuery<T> where(NestedWhereFunction anidado)
 	throws ORMException{
-		final var _ = DB.getColumna(schema, columna);
-		wheres.add(new Where.BasicWhere(
-			columna, comparador, valor, Where.Conector.AND
-		));
+		where.and(anidado);
 		return this;
 	}
 
+	//andWhere == where
+	public SelectQuery<T> andWhere(String columna, String comparador, Object valor)
+	throws ORMException{ return where(columna, comparador, valor); }
+
 	public SelectQuery<T> andWhere(String columna, Object valor)
-	throws ORMException{
-		return andWhere(columna, igualA(valor), valor);
-	}
+	throws ORMException{ return where(columna, igualA(valor), valor); }
 
 	public SelectQuery<T> andWhere(String columna, String comparador, Object valor, Object ...valores)
-	throws ORMException{
-		final var vals = new ArrayList<>();
-		vals.add(valor);
-		vals.addAll(List.of(valores));
-		return andWhere(columna, comparador, vals);
-	}
+	throws ORMException{ return where(columna, comparador, valor, valores); }
+
+	public SelectQuery<T> andWhere(NestedWhereFunction anidado)
+	throws ORMException{ return where(anidado); }
 
 	//orWhere
 	public SelectQuery<T> orWhere(String columna, String comparador, Object valor)
 	throws ORMException{
 		final var _ = DB.getColumna(schema, columna);
-		wheres.add(new Where.BasicWhere(
-			columna, comparador, valor, Where.Conector.OR
-		));
+		where.or(columna, comparador, valor);
 		return this;
 	}
 
 	public SelectQuery<T> orWhere(String columna, Object valor)
-	throws ORMException{
-		return orWhere(columna, igualA(valor), valor);
-	}
+	throws ORMException{ return orWhere(columna, igualA(valor), valor); }
 
 	public SelectQuery<T> orWhere(String columna, String comparador, Object valor, Object ...valores)
 	throws ORMException{
@@ -108,6 +109,12 @@ public final class SelectQuery<T extends Tabla> implements Query{
 		vals.add(valor);
 		vals.addAll(List.of(valores));
 		return orWhere(columna, comparador, vals);
+	}
+
+	public SelectQuery<T> orWhere(NestedWhereFunction anidado)
+	throws ORMException{
+		where.or(anidado);
+		return this;
 	}
 
 	//groupBy
@@ -190,22 +197,12 @@ public final class SelectQuery<T extends Tabla> implements Query{
 	//TODO: estas son mas complejas asi que pa despues
 //	public void min(){ return; }
 //	public void max(){ return; }
-
 //	public void distinct(){ return; }
 
 	public SelectQuery<T> select(String ...columnas){
 		select.clear();
 		select.addAll(Arrays.asList(columnas));
 		return this;
-	}
-
-	static private String whereArrayToString(ArrayList<Where> arr){
-		final var str = new StringBuilder();
-		for(int i = 0; i < arr.size(); i++){
-			final var w = arr.get(i);
-			str.append(w.toString(i));
-		}
-		return str.toString();
 	}
 
 	@Override
@@ -216,9 +213,16 @@ public final class SelectQuery<T extends Tabla> implements Query{
 			String.join(", ", select), schema.tabla()
 		));
 
-		if(!wheres.isEmpty()){
-			sql_query.append(" WHERE %s".formatted(whereArrayToString(wheres)));
+		final var filter_str = base_filter.toString(0);
+		final var where_str  = where.toString(0);
+		final var filtered_where = Stream.of(filter_str, where_str)
+			.filter(s -> !s.isBlank())
+			.toList();
+		final var filtered_where_str = String.join(" AND ", filtered_where);
+		if(!filtered_where_str.isBlank()){
+			sql_query.append(" WHERE %s".formatted(filtered_where_str));
 		}
+
 		//TODO: me esta faltando usar ? wildcards con el Where!
 
 		//GROUP BY
@@ -229,10 +233,9 @@ public final class SelectQuery<T extends Tabla> implements Query{
 		}
 
 		//HAVING
-		if(!having.isEmpty()){
-			sql_query.append(" HAVING %s".formatted(
-				whereArrayToString(having)
-			));
+		final var having_str = having.toString(0);
+		if(!having_str.isBlank()){
+			sql_query.append(" HAVING %s".formatted(having_str));
 		}
 
 		//ORDER BY

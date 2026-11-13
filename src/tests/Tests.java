@@ -414,6 +414,22 @@ public class Tests{
 		assertEquals(1L, DB.buscarBorrados(Usuario.class).count(), "buscarBorrados no incluye borrados");
 		assertEquals(usr.getId(), DB.buscarBorrados(Usuario.class).first().getId(), "buscarBorrados no incluye borrados");
 		assertEquals(2L, DB.buscarConBorrados(Usuario.class).count(), "buscarConBorrados falla");
+
+		final var usr_borrado = DB.buscar(Usuario.class).where("nombre", usr.getNombre()).count();
+		assertTrue(0 == usr_borrado, "where no filtra borrados");
+
+		final var usr_no_borrado = DB.buscar(Usuario.class).toList();
+		assertEquals(1, usr_no_borrado.size(), "toList no filtra borrados");
+
+		assertTrue(DB.buscar(Usuario.class).avg("edad") == 321F, "avg no filtra borrados");
+
+		//test borrar con OR
+		final var con_or = DB.buscar(Usuario.class)
+			.where("nombre", "LIKE", "q%")
+			.orWhere("nombre", "qwe");
+
+		assertTrue(con_or.count() == 0, "orwhere pisa el filtro de borrado");
+
 	}
 
 

@@ -588,7 +588,8 @@ public class DB{
 
 	static public <T extends Tabla> SelectQuery<T> buscar(Class<T> tabla)
 	throws ORMException{
-		return new SelectQuery<>(tabla).where("borrado", null);
+		final var filter = (new Where.NestedWhere()).and("borrado", "IS", null);
+		return new SelectQuery<>(tabla, filter);
 	}
 
 	static public <T extends Tabla> SelectQuery<T> buscarConBorrados(Class<T> tabla){
@@ -597,7 +598,8 @@ public class DB{
 
 	static public <T extends Tabla> SelectQuery<T> buscarBorrados(Class<T> tabla)
 	throws ORMException{
-		return new SelectQuery<>(tabla).where("borrado", "IS NOT", null);
+		final var filter = (new Where.NestedWhere()).and("borrado", "IS NOT", null);
+		return new SelectQuery<>(tabla, filter);
 	}
 
 	static public <T extends Tabla> T buscarPorId(

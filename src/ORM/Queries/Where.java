@@ -3,6 +3,7 @@ import ORM.Exceptions.ORMException;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 public sealed interface Where permits Where.BasicWhere, Where.NestedWhere{
 	enum Conector{ AND, OR }
@@ -53,17 +54,57 @@ public sealed interface Where permits Where.BasicWhere, Where.NestedWhere{
 					  .append(valor_str)
 				   	  .toString();
 		}
-
-
 	}
-
 
 	record NestedWhere(
 		ArrayList<Where> wheres,
 		Conector         conector
 	) implements Where{
+
+		@FunctionalInterface
+		public interface NestedWhereFunction {
+			NestedWhere apply(NestedWhere w) throws ORMException;
+		}
+
+		public NestedWhere(){ this(new ArrayList<>(), Conector.AND); }
+
+		//and
+		public NestedWhere and(String columna, String comparador, Object valor)
+		throws ORMException{
+			wheres.add(new Where.BasicWhere(
+				columna, comparador, valor, Conector.AND
+			));
+			return this;
+		}
+
+		public NestedWhere and(NestedWhereFunction anidado)
+		throws ORMException{
+			wheres.add(anidado.apply(new Where.NestedWhere(
+				new ArrayList<>(), Conector.AND
+			)));
+			return this;
+		}
+
+		//or
+		public NestedWhere or(String columna, String comparador, Object valor)
+		throws ORMException{
+			wheres.add(new Where.BasicWhere(
+				columna, comparador, valor, Conector.OR
+			));
+			return this;
+		}
+
+		public NestedWhere or(NestedWhereFunction anidado)
+		throws ORMException{
+			wheres.add(anidado.apply(new Where.NestedWhere(
+				new ArrayList<>(), Conector.OR
+			)));
+			return this;
+		}
+
 		@Override
 		public String toString(int index){
+			if(wheres.isEmpty()) return "";
 			final var str = new StringBuilder();
 			if(index > 0) str.append(" ").append(conector);
 			str.append("(");
