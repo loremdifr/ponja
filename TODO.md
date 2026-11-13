@@ -3,7 +3,6 @@
 - Revisar que todos los recursos (conexiones, statements, resultsets) esten siendo cerrados correctamente.
 - usar ? wildcards en el preparedstatements de la selectquery
 - validar nombres de columnas en selectquery
-- paginacion de resultados!!!
 
 # URGENTE:
 - case List<?> en DB::setRelacion
@@ -23,10 +22,8 @@
 
 
 ## relaciones de tablas
-  - ManyToOne: la fk se autocrea y la matiene el orm
-  - OneToMany: lazy list en el get. Si la columna inversa no tiene la relation, tirar error.
   - ManyToMany: .. por ahora no
-
+  - @ConfigurarRelacion annotation para cambiarle fkey y tabla y demas a una relacion 
 
 
 ## transactions

@@ -4,7 +4,6 @@ import ORM.Clases.Tabla;
 import ORM.Exceptions.ORMException;
 import ORM.SQL.ClaveForanea;
 
-//import java.lang.reflect.Field;
 
 //TODO: ya no hace falta el T extends tabla..?
 public abstract sealed class Relacion<T extends Tabla, V>
@@ -15,7 +14,6 @@ permits ManyToOne, OneToOne, OneToMany{
 	Integer fk        = null;
 	boolean cargada   = false;
 	V cache_db        = null;
-//	V cache_prev      = null;
 	boolean pendiente = false; //TODO: renombrar a guardada?
 
 	public Relacion(Integer fk){ this.fk = fk; }
@@ -27,7 +25,6 @@ permits ManyToOne, OneToOne, OneToMany{
 
 	//TODO: no me gusta el nombre del param
 	public void __cargar(V fila_asociada){
-//		if(cargada) cache_prev = cache_db;
 		cache_db = fila_asociada;
 		cargada  = true;
 	}
@@ -41,7 +38,6 @@ permits ManyToOne, OneToOne, OneToMany{
 	public Integer fk()         { return fk;         }
 	public boolean cargada()    { return cargada;    }
 	public V       cache_db()   { return cache_db;   }
-//	public V       cache_prev() { return cache_prev; }
 	public boolean pendiente()  { return pendiente;  }
 
 	// setters

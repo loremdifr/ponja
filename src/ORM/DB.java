@@ -265,7 +265,6 @@ public class DB{
 				//invalidar cache, para que la proxima vez que se acceda
 				//a los datos relacionados se vuelvan a buscar desde la DB
 				rel.__invalidarCache();
-
 			}
 
 			// hay que desasociar los que estaban asociados en la DB
@@ -275,6 +274,10 @@ public class DB{
 				_id -> !en_lista.contains((Integer) _id)
 			).toList();
 			if(!borrados.isEmpty()){
+				//NOTE: las filas borradas no se van a actualizar magicamente
+				//      si te las guardaste en otra variable, sus datos van a
+				//      quedar desactualizados.
+
 				//TODO: esto es muy similar a lo anterior, se puede refactorear luego
 				final var query = "UPDATE %s SET %s = NULL, modificado = ? WHERE id IN (%s)";
 				final var params = new ArrayList<Object>(
@@ -462,9 +465,6 @@ public class DB{
 			while(results.next()){
 				final var fila = new Fila();
 				for(int i = 0; i < meta_data.getColumnCount(); i++){
-					//TODO: esto no esta contemplando que los valores sean o no nullabes!
-					//      por ej, para una columna int que esta en null, devuelve 0!
-
 					final var label    = meta_data.getColumnLabel(i+1);
 					final var sql_type = meta_data.getColumnType(i+1);
 					final var tipo_col = TipoColumna.fromSqlType(sql_type);

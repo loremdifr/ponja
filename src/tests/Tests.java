@@ -341,6 +341,55 @@ public class Tests{
 			globant.getId(), id_empresa_b,
 			"OneToMany falla al guardar la fkey en la tabla relacionada"
 		);
+
+		final var guardados = globant.getUsuarios();
+		assertCount(guardados, 2, "OneToMany no trae los valores esperados ");
+		final var usuarios_esperados = List.of(a.getId(), b.getId());
+		assertTrue(
+			guardados.stream().noneMatch(u -> u == a)
+			&& guardados.stream().noneMatch(u -> u == b),
+			"OneToMany refresca los datos a larga distancia, que miedo"
+		);
+		assertContainsAll(
+			guardados.stream().map(u -> u.getId()).toList(),
+			usuarios_esperados,
+			"los ids no coinciden");
+
+		final var desde_db = DB.buscarPorId(Empresa.class, globant.getId());
+		final var usrs = desde_db.getUsuarios();
+		assertCount(usrs, 2, "OneToMany fallo al guardar");
+		assertContainsAll(
+			usrs.stream().map(u -> u.getId()).toList(),
+			usuarios_esperados,
+			"OneToMany fallo al guardar"
+		);
+
+		//borrar
+		globant.setUsuarios(new ArrayList<>(List.of(a)));
+		globant.guardar();
+
+		final var uno_solo = DB.buscarPorFk(
+			Usuario.class, "id_empresa", globant.getId()
+		);
+		assertCount(uno_solo, 1, "OneToMany no desvincula");
+		assertEquals(a.getId(), uno_solo.getFirst().getId(), "OneToMany desvincula mal");
+
+		final var globant2 = DB.buscarPorId(Empresa.class, globant.getId());
+		final var globbers2 = globant2.getUsuarios();
+		assertCount(globbers2, 1, "OneToMany no actualiza al borrar");
+		assertEquals(a.getId(), globbers2.getFirst().getId(), "OneToMany actualiza mal");
+
+		// todo esto es a proposito: si guardas una vinculada entidad en otra
+		// variable, y la desvinculas, el ORM no te va a modificar la que guardaste
+		// en otro lado porque no es intuitivo y posiblemente no lo necesites.
+
+		b.guardar();
+		final var b_id_empresa = DB.query(
+			"SELECT id_empresa FROM usuario WHERE id = ?",
+			b.getId()
+		).getFirst().get("id_empresa");
+		assertEquals(globant.getId(), b_id_empresa, "el ORM esta haciendo magia negra");
+
 	}
 
 	// ---

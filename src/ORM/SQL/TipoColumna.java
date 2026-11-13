@@ -129,7 +129,7 @@ public enum TipoColumna{
 	)
 	throws ORMException{
 		try{
-			return switch(tipo_columna){
+			final var valor = switch(tipo_columna){
 				case BOOL     -> result.getBoolean   (label);
 				case INT      -> result.getInt       (label);
 				case BIGINT   -> result.getLong      (label);
@@ -150,6 +150,8 @@ public enum TipoColumna{
 				//      tipoDeColumna cambia los AUTO a lo que le corresponden.
 				case AUTO -> throw new FatalORMException();
 			};
+			if(result.wasNull()) return null; //increible api amigo, la hiciste vos?
+			return valor;
 		}catch(SQLException e){
 			throw new TipoDeColumnaIncongruenteException(tipo_columna, label);
 		}

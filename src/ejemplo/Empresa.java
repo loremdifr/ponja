@@ -11,7 +11,7 @@ import java.util.List;
 public class Empresa extends Tabla{
 
 	private String nombre;
-	private final OneToMany<Usuario> usuarios;
+	private OneToMany<Usuario> usuarios;
 
 	public Empresa(String nombre){
 		this.nombre = nombre;
