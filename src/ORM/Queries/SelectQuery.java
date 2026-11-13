@@ -21,7 +21,7 @@ public final class SelectQuery<T extends Tabla> implements Query{
 
 	private enum Dir {DESC, ASC}
 
-	final private Class<T> from;
+	private final Class<T> from;
 	final private Schema schema;
 	final private NestedWhere base_filter; //el where final es (base_filter) AND (where)
 
@@ -53,6 +53,8 @@ public final class SelectQuery<T extends Tabla> implements Query{
 	}
 
 	public SelectQuery(Class<T> from){ this(from, new NestedWhere()); }
+
+	public Class<T> from(){ return from; }
 
 	//where
 	public SelectQuery<T> where(String columna, String comparador, Object valor)
@@ -158,10 +160,7 @@ public final class SelectQuery<T extends Tabla> implements Query{
 
 	//results
 	public List<T> toList() throws ORMException{
-		final var results = DB.ejecutarQuery(this);
-		final var filas   = DB.resultSetAFilas(results);
-		return DB.instanciarFilas(filas, from);
-
+		return DB.ejecutarQuery(this);
 	}
 
 	public T first() throws ORMException{

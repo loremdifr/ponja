@@ -412,15 +412,18 @@ public class DB{
 
 	static public ArrayList<Fila> query(String query_str, Object ...query_params)
 	throws ORMException {
-		try{
-			final var statement = conexion.prepareStatement(query_str);
+		try(final var statement = conexion.prepareStatement(query_str)){
+
 			for(int i = 0; i < query_params.length; i++){
 				final var param = query_params[i];
 				TipoColumna.valueIntoStatement(statement, i + 1, param);
 			}
 
 			final var results = statement.executeQuery();
-			return resultSetAFilas(results);
+			final var filas   = resultSetAFilas(results);
+			results.close();
+			return filas;
+
 		}catch(SQLTimeoutException e){
 			throw new DBTimeoutException();
 		}catch(SQLException e){
@@ -430,13 +433,11 @@ public class DB{
 
 	static public int ejecutarUpdate(String query_str, Object ...query_params)
 	throws ORMException {
-		try{
-			final var statement = conexion.prepareStatement(query_str);
+		try(final var statement = conexion.prepareStatement(query_str)){
 			for(int i = 0; i < query_params.length; i++){
 				final var param = query_params[i];
 				TipoColumna.valueIntoStatement(statement, i + 1, param);
 			}
-
 			return statement.executeUpdate();
 		}catch(SQLTimeoutException e){
 			throw new DBTimeoutException();
@@ -445,11 +446,13 @@ public class DB{
 		}
 	}
 
-	static public ResultSet ejecutarQuery(Query query)
+	static public <T extends Tabla> List<T> ejecutarQuery(SelectQuery<T> query)
 	throws ORMException {
-		try{
-			final var statement = query.toPreparedStatement(conexion);
-			return statement.executeQuery();
+		try(final var statement = query.toPreparedStatement(conexion);
+			final var results = statement.executeQuery()){
+			final var filas = DB.resultSetAFilas(results);
+			return DB.instanciarFilas(filas, query.from());
+
 		}catch(SQLTimeoutException e){
 			throw new DBTimeoutException();
 		}catch(SQLException e){
@@ -461,7 +464,8 @@ public class DB{
 		SelectQuery<R> query,
 		ResultSetGetter<T> result_getter
 	) throws ORMException {
-		try(final var result = DB.ejecutarQuery(query)){
+		try(final var statement = query.toPreparedStatement(conexion);
+			final var result = statement.executeQuery()){
 			result.next(); //TODO: assert
 			return result_getter.apply(result, 1);
 		}catch(SQLException e){
@@ -759,29 +763,31 @@ public class DB{
 	private static HashMap<String, Columna> extraerColumnasDB(String tabla_nombre)
 	throws ORMException{
 		try{
-			final var catalog = conexion.getCatalog();
+			final var catalog   = conexion.getCatalog();
 			final var meta_data = conexion.getMetaData();
-			final var cols    = meta_data.getColumns(catalog, null, tabla_nombre, "%");
-			final var pks     = meta_data.getPrimaryKeys(catalog, null, tabla_nombre);
-			final var pk_name = pks.next() ? pks.getString("COLUMN_NAME") : null;
+			try(
+				final var cols = meta_data.getColumns(catalog, null, tabla_nombre, "%");
+				final var pks  = meta_data.getPrimaryKeys(catalog, null, tabla_nombre);
+			){
+				final var pk_name = pks.next() ? pks.getString("COLUMN_NAME") : null;
+				final var columnas = new HashMap<String, Columna>();
 
-			final var columnas = new HashMap<String, Columna>();
-
-			while(cols.next()){
-				//cols.getString("IS_AUTOINCREMENT") //TODO: usarlo
-				//TODO: extraer estos strings a un enum porque es un asco esto asi carlitos
-				final var column_name = cols.getString("COLUMN_NAME");
-				final var es_pk       = column_name.equals(pk_name);
-				final var tipo_col    = TipoColumna.fromSqlType(cols.getInt("DATA_TYPE"));
-				final var columna     = new Columna(
-					column_name,
-					tipo_col,
-					cols.getString("IS_NULLABLE").equals("NO"),
-					es_pk
-				);
-				columnas.put(column_name, columna);
+				while(cols.next()){
+					//cols.getString("IS_AUTOINCREMENT") //TODO: usarlo
+					//TODO: extraer estos strings a un enum porque es un asco esto asi carlitos
+					final var column_name = cols.getString("COLUMN_NAME");
+					final var es_pk       = column_name.equals(pk_name);
+					final var tipo_col    = TipoColumna.fromSqlType(cols.getInt("DATA_TYPE"));
+					final var columna     = new Columna(
+						column_name,
+						tipo_col,
+						cols.getString("IS_NULLABLE").equals("NO"),
+						es_pk
+					);
+					columnas.put(column_name, columna);
+				}
+				return columnas;
 			}
-			return columnas;
 		}catch(SQLException e){
 			throw new ErrorEnQueryException(e);
 		}
@@ -817,8 +823,7 @@ public class DB{
 	}
 
 	static public boolean existeTabla(Schema schema) throws ORMException{
-		try{
-			final var statement = conexion.createStatement();
+		try(final var statement = conexion.createStatement()){
 			final var sql = """
 							SELECT COUNT(*) FROM information_schema.tables
 							WHERE table_schema = '%s'
@@ -826,9 +831,7 @@ public class DB{
 							""";
 			final var sql_str = sql.formatted(conexion.nombreDB(), schema.tabla());
 			final var result  = statement.executeQuery(sql_str);
-			final var success = result.next() && result.getInt(1) > 0;
-			statement.close();
-			return success;
+			return result.next() && result.getInt(1) > 0;
 		}catch(SQLException e){ throw new ErrorEnQueryException(e); }
 	}
 
