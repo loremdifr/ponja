@@ -30,38 +30,10 @@ public class DB{
 		);
 	}
 
-	private static final Connection conexion;
+	private static MySQL conexion = null;
 	private static final Map<Class<? extends Tabla>, Schema> tablas;
-	private static final String nombre_db;
 
 	static {
-		var config_file = DB.class.getResourceAsStream("db.properties");
-		if(config_file == null) throw new DBConfigInexistenteException();
-
-		var db_config = new Properties();
-
-		try{
-			db_config.load(config_file);
-		}catch(IOException e){
-			throw new DBConfigInexistenteException();
-		}
-
-		var host = db_config.getProperty("host");
-		var port = db_config.getProperty("port");
-		var db   = db_config.getProperty("db");
-		var usr  = db_config.getProperty("usr");
-		var pwd  = db_config.getProperty("pwd");
-
-		try{
-			final var url_template = "jdbc:mysql://%s:%s/%s";
-			conexion = DriverManager.getConnection(
-				url_template.formatted(host, port, db), usr, pwd
-			);
-		}catch(SQLException e){
-			throw new DBConexionException(e);
-		}
-
-		nombre_db = db;
 		tablas = new HashMap<>();
 	}
 
@@ -85,6 +57,18 @@ public class DB{
 	@SafeVarargs
 	public static void registrarTablas(Class<? extends Tabla> ...clases)
 	throws ORMException{
+		registrarTablas(null, clases);
+	}
+
+	@SafeVarargs
+	public static void registrarTablas(
+		String archivo_config,
+		Class<? extends Tabla> ...clases
+	) throws ORMException{
+
+		conexion = archivo_config == null
+			? new MySQL()
+			: new MySQL(archivo_config);
 
 		if(!tablas.isEmpty()) throw new NoLeisteElReadmeException();
 
@@ -170,25 +154,26 @@ public class DB{
 
 			//guardar
 			final var query     = new InsertIntoQuery(schema, fila);
-			final var statement = query.toPreparedStatement(conexion);
-			final var result    = statement.executeUpdate() > 0;
+			try(var statement = query.toPreparedStatement(conexion)){
+				final var result = statement.executeUpdate() > 0;
+				//rellenar PK si se creo
+				if(result && fila.getId() == null){
+					final var generated_keys = statement.getGeneratedKeys();
+					final var pk_field = schema.pk();
+					final var col      = schema.columnas().get(pk_field);
 
-			//rellenar PK si se creo
-			if(result && fila.getId() == null){
-				final var generated_keys = statement.getGeneratedKeys();
-				final var pk_field = schema.pk();
-				final var col      = schema.columnas().get(pk_field);
+					generated_keys.next(); //TODO: assert
 
-				generated_keys.next(); //TODO: assert
+					final var nueva_id = TipoColumna.valueFromResult(
+						col, generated_keys, "GENERATED_KEY"
+					);
+					pk_field.setAccessible(true);
+					pk_field.set(fila, nueva_id);
+				}
 
-				final var nueva_id = TipoColumna.valueFromResult(
-					col, generated_keys, "GENERATED_KEY"
-				);
-				pk_field.setAccessible(true);
-				pk_field.set(fila, nueva_id);
+				return result;
 			}
 
-			return result;
 		}catch(SQLException e){
 			throw new GuardadoFallidoException(fila);
 		}catch(IllegalAccessException e){
@@ -547,13 +532,11 @@ public class DB{
 			cols_a_modificar
 		);
 
-		try{
-			final var statement = super_query.toPreparedStatement(conexion);
-			final var result    = statement.executeUpdate() > 0;
+		try(var statement = super_query.toPreparedStatement(conexion)){
+			final var result = statement.executeUpdate() > 0;
 			//TODO: falta algo aca?
 
 		}catch(SQLException e){ throw new ErrorEnQueryException(e); }
-
 	}
 
 
@@ -625,7 +608,7 @@ public class DB{
 							WHERE table_schema = '%s'
 							AND table_name = '%s';
 							""";
-			final var sql_str = sql.formatted(nombre_db, schema.tabla());
+			final var sql_str = sql.formatted(conexion.nombreDB(), schema.tabla());
 			final var result  = statement.executeQuery(sql_str);
 			final var success = result.next() && result.getInt(1) > 0;
 			statement.close();

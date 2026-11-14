@@ -2,6 +2,7 @@ package ORM.Queries;
 
 import ORM.Exceptions.Checked.ErrorEnQueryException;
 import ORM.Exceptions.ORMException;
+import ORM.MySQL;
 import ORM.SQL.Columna;
 import ORM.SQL.Schema;
 
@@ -23,7 +24,7 @@ public record AlterTableQuery(
 
 	@Override
 	public PreparedStatement toPreparedStatement(
-		Connection conexion
+		MySQL conexion
 	) throws ORMException{
 
 		//NOTE: tanto add column como drop column se tienen

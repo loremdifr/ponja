@@ -5,9 +5,9 @@ import ORM.Exceptions.Checked.DireccionInvalidaException;
 import ORM.Exceptions.Checked.ErrorEnQueryException;
 import ORM.Exceptions.Checked.OrderByImparesException;
 import ORM.Exceptions.ORMException;
+import ORM.MySQL;
 import ORM.SQL.Schema;
 
-import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -200,7 +200,7 @@ public final class SelectQuery<T extends Tabla> implements Query{
 	}
 
 	@Override
-	public PreparedStatement toPreparedStatement(Connection conexion)
+	public PreparedStatement toPreparedStatement(MySQL conexion)
 	throws ORMException{
 		final var sql_query = new StringBuilder();
 		sql_query.append("SELECT %s FROM %s".formatted(

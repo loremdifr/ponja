@@ -1,4 +1,5 @@
 src/ORM/db.properties
+src/ORM/db.test.properties
 
 ### IntelliJ IDEA ###
 out/

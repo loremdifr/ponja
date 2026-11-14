@@ -2,8 +2,8 @@ package ORM.Queries;
 
 
 import ORM.Exceptions.ORMException;
+import ORM.MySQL;
 
-import java.sql.Connection;
 import java.sql.PreparedStatement;
 
 sealed public interface Query permits
@@ -12,5 +12,5 @@ sealed public interface Query permits
 	CreateTableQuery,
 	InsertIntoQuery
 {
-	PreparedStatement toPreparedStatement(Connection conexion) throws ORMException;
+	PreparedStatement toPreparedStatement(MySQL conexion) throws ORMException;
 }

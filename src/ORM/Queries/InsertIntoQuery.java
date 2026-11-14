@@ -4,6 +4,7 @@ import ORM.Clases.Tabla;
 import ORM.DB;
 import ORM.Exceptions.Checked.ErrorEnQueryException;
 import ORM.Exceptions.ORMException;
+import ORM.MySQL;
 import ORM.SQL.Schema;
 import ORM.SQL.TipoColumna;
 
@@ -16,7 +17,7 @@ public record InsertIntoQuery(
 ) implements Query{
 
 	@Override
-	public PreparedStatement toPreparedStatement(Connection conexion)
+	public PreparedStatement toPreparedStatement(MySQL conexion)
 	throws ORMException{
 		//TODO: only update dirty fields
 
@@ -47,16 +48,14 @@ public record InsertIntoQuery(
 				));
 			}
 
-			final var statement = conexion.prepareStatement(
+			final var statement = conexion.preparedStatementWithGeneratedKeys(
 				query_str.formatted(
 					schema.tabla(),
 					String.join(", ", columnas),
 					"?, ".repeat(valores.size() - 1) + " ?",
 					alias_fila,
 					String.join(", ", update)
-				),
-				Statement.RETURN_GENERATED_KEYS //necesario para poder hidratar la PK
-			);
+				));
 
 
 			for(int i = 0; i < valores.size(); i++){

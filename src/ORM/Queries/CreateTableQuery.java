@@ -1,9 +1,9 @@
 package ORM.Queries;
 
 import ORM.Exceptions.ORMException;
+import ORM.MySQL;
 import ORM.SQL.Schema;
 
-import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.util.ArrayList;
 
@@ -30,7 +30,7 @@ public record CreateTableQuery(Schema schema) implements Query{
 	}
 
 	@Override
-	public PreparedStatement toPreparedStatement(Connection conexion)
+	public PreparedStatement toPreparedStatement(MySQL conexion)
 	throws ORMException{
 		//TODO:
 		return null;
